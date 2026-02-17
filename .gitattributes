@@ -1,0 +1,22 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Force batch scripts to always use CRLF line endings
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Force shell scripts to always use LF line endings
+*.sh text eol=lf
+
+# Images
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+
+# Archives
+*.gz binary
+*.tar binary
+*.zip binary
