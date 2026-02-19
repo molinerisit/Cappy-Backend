@@ -156,14 +156,15 @@ exports.completeNode = async (req, res) => {
         score: score || 100,
         attempts: 1
       });
-
-      // Award XP
-      userProgress.xp += node.xpReward;
     } else {
+      // Allow repeat completions - increment attempts and update score
       alreadyCompleted.attempts += 1;
       alreadyCompleted.completedAt = new Date();
       alreadyCompleted.score = score || 100;
     }
+
+    // Award XP every time (even on repeat completions)
+    userProgress.xp += node.xpReward;
 
     // Check level up (every 100 XP = 1 level)
     const newLevel = Math.floor(userProgress.xp / 100) + 1;
@@ -179,10 +180,14 @@ exports.completeNode = async (req, res) => {
     });
 
     res.json({
-      message: "Nodo completado",
+      message: alreadyCompleted 
+        ? `Nodo completado de nuevo! +${node.xpReward} XP (Intento #${alreadyCompleted.attempts})`
+        : "Nodo completado",
       xpEarned: node.xpReward,
       totalXp: userProgress.xp,
       level: userProgress.level,
+      isRepeat: !!alreadyCompleted,
+      attempts: alreadyCompleted?.attempts || 1,
       unlockedNodes: unlockedNodes.map(n => ({
         id: n._id,
         title: n.title,
