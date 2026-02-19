@@ -12,11 +12,20 @@ const normalizeSteps = (steps) => {
       return step;
     }
 
-    if (step && typeof step === "object" && step.instruction) {
-      return step.instruction;
+    if (step && typeof step === "object") {
+      const text =
+        step.instruction ||
+        step.content ||
+        step.text ||
+        step.description ||
+        step.title;
+
+      if (text) {
+        return text;
+      }
     }
 
-    return String(step);
+    return String(step ?? "");
   });
 };
 
