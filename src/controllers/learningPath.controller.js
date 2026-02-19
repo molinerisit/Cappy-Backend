@@ -90,21 +90,32 @@ exports.getPath = async (req, res) => {
     }
 
     // Get user progress if authenticated
-    let userProgress = null;
+    let unlockedNodeIds = [];
     let completedNodeIds = [];
     if (userId) {
-      userProgress = await UserProgress.findOne({ userId });
-      completedNodeIds = userProgress?.completedNodes?.map(n => n.nodeId.toString()) || [];
+      const userProgress = await UserProgress.findOne({ userId, pathId });
+      if (userProgress) {
+        unlockedNodeIds = userProgress.unlockedLessons?.map(n => n.toString()) || [];
+        completedNodeIds = userProgress.completedLessons?.map(n => n.toString()) || [];
+      }
     }
 
-    // Add status to each node
-    const nodesWithStatus = path.nodes.map((node, index) => ({
-      ...node.toObject(),
-      status: completedNodeIds.includes(node._id.toString()) ? 'completed' : 
-              index === 0 || path.nodes.slice(0, index).some(n => completedNodeIds.includes(n._id.toString())) ? 'available' :
-              'locked',
-      position: index % 2 === 0 ? 'left' : 'right'
-    }));
+    // Add status to each node based on unlock state
+    const nodesWithStatus = path.nodes.map((node) => {
+      const nodeIdStr = node._id.toString();
+      let status = 'locked';
+      
+      if (completedNodeIds.includes(nodeIdStr)) {
+        status = 'completed';
+      } else if (unlockedNodeIds.includes(nodeIdStr)) {
+        status = 'active';
+      }
+
+      return {
+        ...node.toObject(),
+        status: status
+      };
+    });
 
     res.json({
       path: {
