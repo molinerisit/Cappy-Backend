@@ -297,7 +297,7 @@ exports.completeNode = async (req, res) => {
 
     // 9. Add XP to user (GLOBAL) - Always awarded, even on repeat completions
     const user = await User.findById(userId);
-    user.totalXP += node.xpReward;
+    user.totalXP = (user.totalXP || 0) + node.xpReward;
     user.level = Math.floor(user.totalXP / 100) + 1;
     await user.save();
 
@@ -310,10 +310,14 @@ exports.completeNode = async (req, res) => {
       totalXP: user.totalXP,
       level: user.level,
       isRepeat: isAlreadyCompleted,
+      nextNodeId: isAlreadyCompleted ? null : (
+        allNodes[currentNodeIndex + 1]?._id || null
+      ),
       progress: {
-        completedLessons: progress.completedLessons,
-        unlockedLessons: progress.unlockedLessons,
-        streak: progress.streak
+        completedLessons: progress.completedLessons.map(id => id.toString()),
+        unlockedLessons: progress.unlockedLessons.map(id => id.toString()),
+        streak: progress.streak,
+        lastCompletedAt: progress.lastCompletedAt
       }
     });
   } catch (error) {
