@@ -270,11 +270,12 @@ exports.completeNode = async (req, res) => {
       progress.streak = 1;
     }
 
-    // 8. Unlock next node(s) by order (only on first completion)
+    // 8. Get all nodes for unlock logic
+    const allNodes = await LearningNode.find({ pathId: node.pathId }).sort('order');
+    const currentNodeIndex = allNodes.findIndex(n => n._id.toString() === nodeId);
+
+    // 9. Unlock next node(s) by order (only on first completion)
     if (!isAlreadyCompleted) {
-      const allNodes = await LearningNode.find({ pathId: node.pathId }).sort('order');
-      const currentNodeIndex = allNodes.findIndex(n => n._id.toString() === nodeId);
-      
       if (currentNodeIndex < allNodes.length - 1) {
         const nextNode = allNodes[currentNodeIndex + 1];
         // Check if all required nodes are completed
@@ -295,13 +296,17 @@ exports.completeNode = async (req, res) => {
 
     await progress.save();
 
-    // 9. Add XP to user (GLOBAL) - Always awarded, even on repeat completions
+    // 10. Add XP to user (GLOBAL) - Always awarded, even on repeat completions
     const user = await User.findById(userId);
     user.totalXP = (user.totalXP || 0) + node.xpReward;
     user.level = Math.floor(user.totalXP / 100) + 1;
     await user.save();
 
-    // 10. Return updated data
+    // 11. Return updated data
+    const nextNode = currentNodeIndex < allNodes.length - 1 
+      ? allNodes[currentNodeIndex + 1] 
+      : null;
+    
     res.json({
       message: isAlreadyCompleted 
         ? `Nodo completado de nuevo! +${node.xpReward} XP` 
@@ -310,9 +315,7 @@ exports.completeNode = async (req, res) => {
       totalXP: user.totalXP,
       level: user.level,
       isRepeat: isAlreadyCompleted,
-      nextNodeId: isAlreadyCompleted ? null : (
-        allNodes[currentNodeIndex + 1]?._id || null
-      ),
+      nextNodeId: !isAlreadyCompleted && nextNode ? nextNode._id : null,
       progress: {
         completedLessons: progress.completedLessons.map(id => id.toString()),
         unlockedLessons: progress.unlockedLessons.map(id => id.toString()),
