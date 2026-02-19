@@ -275,22 +275,16 @@ exports.completeNode = async (req, res) => {
     const currentNodeIndex = allNodes.findIndex(n => n._id.toString() === nodeId);
 
     // 9. Unlock next node(s) by order (only on first completion)
-    if (!isAlreadyCompleted) {
-      if (currentNodeIndex < allNodes.length - 1) {
-        const nextNode = allNodes[currentNodeIndex + 1];
-        // Check if all required nodes are completed
-        const requiredCompleted = nextNode.requiredNodes.every(reqId =>
-          progress.completedLessons.some(id => id.toString() === reqId.toString())
-        );
-
-        if (requiredCompleted) {
-          const alreadyUnlocked = progress.unlockedLessons.some(
-            id => id.toString() === nextNode._id.toString()
-          );
-          if (!alreadyUnlocked) {
-            progress.unlockedLessons.push(nextNode._id);
-          }
-        }
+    if (!isAlreadyCompleted && currentNodeIndex < allNodes.length - 1) {
+      const nextNode = allNodes[currentNodeIndex + 1];
+      
+      // Check if already unlocked to avoid duplicates
+      const alreadyUnlocked = progress.unlockedLessons.some(
+        id => id.toString() === nextNode._id.toString()
+      );
+      
+      if (!alreadyUnlocked) {
+        progress.unlockedLessons.push(nextNode._id);
       }
     }
 
