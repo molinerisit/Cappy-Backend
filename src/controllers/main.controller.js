@@ -3,6 +3,7 @@ const LearningPath = require('../models/LearningPath.model');
 const LearningNode = require('../models/LearningNode.model');
 const UserProgress = require('../models/UserProgress.model');
 const User = require('../models/user.model');
+const { getOrCreateNodeProgress } = require('../services/nodeProgress.service');
 
 // ========================================
 // GET ALL COUNTRIES (Experiencia Culinaria)
@@ -51,16 +52,16 @@ exports.getCountryHub = async (req, res) => {
 
     if (userId) {
       if (recipePath) {
-        recipeProgress = await UserProgress.findOne({
+        recipeProgress = await getOrCreateNodeProgress(
           userId,
-          pathId: recipePath._id
-        });
+          recipePath._id
+        );
       }
       if (culturePath) {
-        cultureProgress = await UserProgress.findOne({
+        cultureProgress = await getOrCreateNodeProgress(
           userId,
-          pathId: culturePath._id
-        });
+          culturePath._id
+        );
       }
     }
 
@@ -142,10 +143,7 @@ exports.getGoalPaths = async (req, res) => {
     for (const path of goalPaths) {
       let progress = null;
       if (userId) {
-        progress = await UserProgress.findOne({
-          userId,
-          pathId: path._id
-        });
+        progress = await getOrCreateNodeProgress(userId, path._id);
       }
 
       const unlockedIds = progress?.unlockedLessons || [];
@@ -193,7 +191,7 @@ exports.getPathWithNodes = async (req, res) => {
     // Get user progress
     let progress = null;
     if (userId) {
-      progress = await UserProgress.findOne({ userId, pathId });
+      progress = await getOrCreateNodeProgress(userId, pathId);
     }
 
     const unlockedIds = progress?.unlockedLessons || [];
@@ -238,21 +236,7 @@ exports.completeNode = async (req, res) => {
     }
 
     // 3. Get or create user progress
-    let progress = await UserProgress.findOne({
-      userId,
-      pathId: node.pathId
-    });
-
-    if (!progress) {
-      // First time user accesses this path
-      progress = await UserProgress.create({
-        userId,
-        pathId: node.pathId,
-        unlockedLessons: [node._id],
-        completedLessons: [],
-        streak: 0
-      });
-    }
+    let progress = await getOrCreateNodeProgress(userId, node.pathId);
 
     // 4. Verify node is unlocked
     const isUnlocked = progress.unlockedLessons.some(
