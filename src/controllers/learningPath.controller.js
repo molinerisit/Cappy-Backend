@@ -2,6 +2,7 @@ const LearningPath = require("../models/LearningPath.model");
 const LearningNode = require("../models/LearningNode.model");
 const Country = require("../models/Country.model");
 const UserProgress = require("../models/UserProgress.model");
+const nodeProgressService = require("../services/nodeProgress.service");
 
 // ==============================
 // GET ALL PATHS FOR NAVIGATION
@@ -93,11 +94,10 @@ exports.getPath = async (req, res) => {
     let unlockedNodeIds = [];
     let completedNodeIds = [];
     if (userId) {
-      const userProgress = await UserProgress.findOne({ userId, pathId });
-      if (userProgress) {
-        unlockedNodeIds = userProgress.unlockedLessons?.map(n => n.toString()) || [];
-        completedNodeIds = userProgress.completedLessons?.map(n => n.toString()) || [];
-      }
+      // Ensure user has progress for this path (creates if needed and unlocks first node)
+      const userProgress = await nodeProgressService.getOrCreateNodeProgress(userId, pathId);
+      unlockedNodeIds = userProgress.unlockedLessons?.map(n => n.toString()) || [];
+      completedNodeIds = userProgress.completedLessons?.map(n => n.toString()) || [];
     }
 
     // Add status to each node based on unlock state
