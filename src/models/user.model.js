@@ -8,6 +8,8 @@ const userSchema = new mongoose.Schema(
     dietType: { type: String, default: "none" },
     timePreference: { type: Number, default: 20 },
     xp: { type: Number, default: 0 },
+    totalXP: { type: Number, default: 0 }, // Global XP across all paths
+    level: { type: Number, default: 1 }, // Global level
     streak: { type: Number, default: 0 },
     lastLessonDate: { type: Date },
     completedLessonsCount: { type: Number, default: 0 },

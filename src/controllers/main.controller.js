@@ -246,16 +246,15 @@ exports.completeNode = async (req, res) => {
       return res.status(403).json({ message: 'Nodo bloqueado' });
     }
 
-    // 5. Verify node is not already completed
-    const isCompleted = progress.completedLessons.some(
+    // 5. Check if already completed (for tracking purposes only)
+    const isAlreadyCompleted = progress.completedLessons.some(
       id => id.toString() === nodeId
     );
-    if (isCompleted) {
-      return res.status(400).json({ message: 'Nodo ya completado' });
-    }
 
-    // 6. Mark as completed
-    progress.completedLessons.push(node._id);
+    // 6. Mark as completed (allow multiple completions)
+    if (!isAlreadyCompleted) {
+      progress.completedLessons.push(node._id);
+    }
     progress.lastCompletedAt = new Date();
 
     // 7. Update streak
@@ -271,45 +270,51 @@ exports.completeNode = async (req, res) => {
       progress.streak = 1;
     }
 
-    // 8. Unlock next node(s) by order
+    // 8. Get all nodes for unlock logic
     const allNodes = await LearningNode.find({ pathId: node.pathId }).sort('order');
     const currentNodeIndex = allNodes.findIndex(n => n._id.toString() === nodeId);
-    
-    if (currentNodeIndex < allNodes.length - 1) {
-      const nextNode = allNodes[currentNodeIndex + 1];
-      // Check if all required nodes are completed
-      const requiredCompleted = nextNode.requiredNodes.every(reqId =>
-        progress.completedLessons.some(id => id.toString() === reqId.toString())
-      );
 
-      if (requiredCompleted) {
-        const alreadyUnlocked = progress.unlockedLessons.some(
-          id => id.toString() === nextNode._id.toString()
-        );
-        if (!alreadyUnlocked) {
-          progress.unlockedLessons.push(nextNode._id);
-        }
+    // 9. Unlock next node(s) by order (only on first completion)
+    if (!isAlreadyCompleted && currentNodeIndex < allNodes.length - 1) {
+      const nextNode = allNodes[currentNodeIndex + 1];
+      
+      // Check if already unlocked to avoid duplicates
+      const alreadyUnlocked = progress.unlockedLessons.some(
+        id => id.toString() === nextNode._id.toString()
+      );
+      
+      if (!alreadyUnlocked) {
+        progress.unlockedLessons.push(nextNode._id);
       }
     }
 
     await progress.save();
 
-    // 9. Add XP to user (GLOBAL)
+    // 10. Add XP to user (GLOBAL) - Always awarded, even on repeat completions
     const user = await User.findById(userId);
-    user.totalXP += node.xpReward;
+    user.totalXP = (user.totalXP || 0) + node.xpReward;
     user.level = Math.floor(user.totalXP / 100) + 1;
     await user.save();
 
-    // 10. Return updated data
+    // 11. Return updated data
+    const nextNode = currentNodeIndex < allNodes.length - 1 
+      ? allNodes[currentNodeIndex + 1] 
+      : null;
+    
     res.json({
-      message: 'Nodo completado',
+      message: isAlreadyCompleted 
+        ? `Nodo completado de nuevo! +${node.xpReward} XP` 
+        : 'Nodo completado',
       xpEarned: node.xpReward,
       totalXP: user.totalXP,
       level: user.level,
+      isRepeat: isAlreadyCompleted,
+      nextNodeId: !isAlreadyCompleted && nextNode ? nextNode._id : null,
       progress: {
-        completedLessons: progress.completedLessons,
-        unlockedLessons: progress.unlockedLessons,
-        streak: progress.streak
+        completedLessons: progress.completedLessons.map(id => id.toString()),
+        unlockedLessons: progress.unlockedLessons.map(id => id.toString()),
+        streak: progress.streak,
+        lastCompletedAt: progress.lastCompletedAt
       }
     });
   } catch (error) {

@@ -79,26 +79,26 @@ const completePathLesson = async (userId, lessonId) => {
     throw error;
   }
 
-  const isCompleted = progress.completedLessons.some(
+  const isAlreadyCompleted = progress.completedLessons.some(
     (id) => id.toString() === lessonId.toString()
   );
-
-  if (isCompleted) {
-    const error = new Error("Lesson already completed");
-    error.statusCode = 409;
-    throw error;
-  }
 
   const xpGained = lesson.xpReward ?? lesson.xpAwarded ?? 0;
   const now = new Date();
 
-  progress.completedLessons.push(lesson._id);
+  // Add to completed lessons only if not already completed (track first completion)
+  if (!isAlreadyCompleted) {
+    progress.completedLessons.push(lesson._id);
+  }
+  
+  // Always award XP even on repeat completions
   progress.xp += xpGained;
   progress.streak = updateStreak(progress.streak, progress.lastCompletedAt, now);
   progress.lastCompletedAt = now;
   progress.level = calculateLevel(progress.xp);
 
-  if (typeof lesson.order === "number") {
+  // Unlock next lesson only on first completion
+  if (!isAlreadyCompleted && typeof lesson.order === "number") {
     const nextLesson = await Lesson.findOne({
       pathId: lesson.pathId,
       order: { $gt: lesson.order }

@@ -71,14 +71,27 @@ exports.login = async (req, res) => {
 
 exports.getProfile = async (req, res) => {
   try {
-    const { _id, email, role, xp, streak, skillLevel, dietType, timePreference } = req.user;
+    const { 
+      _id, 
+      email, 
+      role, 
+      totalXP, 
+      level, 
+      streak, 
+      completedLessonsCount,
+      skillLevel, 
+      dietType, 
+      timePreference 
+    } = req.user;
 
     res.json({
       id: _id,
       email,
       role,
-      xp,
+      totalXP,
+      level,
       streak,
+      completedLessonsCount,
       skillLevel,
       dietType,
       timePreference,

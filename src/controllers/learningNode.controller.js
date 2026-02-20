@@ -139,9 +139,19 @@ exports.completeNode = async (req, res) => {
       return res.status(404).json({ message: "Nodo no encontrado" });
     }
 
-    let userProgress = await UserProgress.findOne({ userId });
+    // Find or create UserProgress for this specific path
+    let userProgress = await UserProgress.findOne({ 
+      userId, 
+      pathId: node.pathId 
+    });
+    
     if (!userProgress) {
-      userProgress = new UserProgress({ userId, xp: 0, level: 1 });
+      userProgress = new UserProgress({ 
+        userId, 
+        pathId: node.pathId,
+        xp: 0, 
+        level: 1 
+      });
     }
 
     // Check if already completed
@@ -156,14 +166,15 @@ exports.completeNode = async (req, res) => {
         score: score || 100,
         attempts: 1
       });
-
-      // Award XP
-      userProgress.xp += node.xpReward;
     } else {
+      // Allow repeat completions - increment attempts and update score
       alreadyCompleted.attempts += 1;
       alreadyCompleted.completedAt = new Date();
       alreadyCompleted.score = score || 100;
     }
+
+    // Award XP every time (even on repeat completions)
+    userProgress.xp += node.xpReward;
 
     // Check level up (every 100 XP = 1 level)
     const newLevel = Math.floor(userProgress.xp / 100) + 1;
@@ -173,16 +184,40 @@ exports.completeNode = async (req, res) => {
 
     await userProgress.save();
 
+    // ===== UPDATE GLOBAL USER STATS =====
+    const User = require('../models/user.model');
+    const user = await User.findById(userId);
+    
+    if (user) {
+      // Award global XP
+      user.totalXP += node.xpReward;
+      
+      // Update global level
+      user.level = Math.floor(user.totalXP / 100) + 1;
+      
+      // Increment completed lessons count (only if not already completed)
+      if (!alreadyCompleted) {
+        user.completedLessonsCount = (user.completedLessonsCount || 0) + 1;
+      }
+      
+      await user.save();
+    }
+
     // Get unlocked nodes
     const unlockedNodes = await LearningNode.find({
       requiredNodes: { $in: [nodeId] }
     });
 
     res.json({
-      message: "Nodo completado",
+      message: alreadyCompleted 
+        ? `Nodo completado de nuevo! +${node.xpReward} XP (Intento #${alreadyCompleted.attempts})`
+        : "Nodo completado",
       xpEarned: node.xpReward,
       totalXp: userProgress.xp,
       level: userProgress.level,
+      totalXP: user?.totalXP || 0,
+      isRepeat: !!alreadyCompleted,
+      attempts: alreadyCompleted?.attempts || 1,
       unlockedNodes: unlockedNodes.map(n => ({
         id: n._id,
         title: n.title,
