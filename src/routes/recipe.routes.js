@@ -4,6 +4,7 @@ const recipeController = require("../controllers/recipe.controller");
 const authMiddleware = require("../middleware/auth.middleware");
 
 // Public routes
+router.get("/", recipeController.getAllRecipes); // Get all recipes (admin view)
 router.get("/country/:countryId", recipeController.getRecipesByCountry);
 router.get("/:recipeId", recipeController.getRecipe);
 router.get("/:recipeId/unlock", authMiddleware, recipeController.checkRecipeUnlock);

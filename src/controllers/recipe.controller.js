@@ -9,12 +9,14 @@ exports.getRecipesByCountry = async (req, res) => {
   try {
     const { countryId } = req.params;
 
-    const country = await Country.findById(countryId).populate('recipes');
+    const country = await Country.findById(countryId);
     if (!country) {
       return res.status(404).json({ message: "País no encontrado" });
     }
 
-    res.json(country.recipes);
+    const recipes = await Recipe.find({ countryId }).sort({ createdAt: -1 });
+
+    res.json(recipes);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -36,6 +38,22 @@ exports.getRecipe = async (req, res) => {
     }
 
     res.json(recipe);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ==============================
+// GET ALL RECIPES (Admin)
+// ==============================
+exports.getAllRecipes = async (req, res) => {
+  try {
+    const recipes = await Recipe.find()
+      .populate('countryId', 'name code icon')
+      .populate('requiredSkills', 'name')
+      .sort({ createdAt: -1 });
+
+    res.json(recipes);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -157,6 +175,7 @@ exports.createRecipe = async (req, res) => {
       countryId,
       title,
       description,
+      imageUrl,
       difficulty,
       xpReward,
       servings,
@@ -188,7 +207,8 @@ exports.createRecipe = async (req, res) => {
       countryId,
       title,
       description,
-      difficulty: difficulty || 'medium',
+      imageUrl,
+      difficulty: difficulty || 2,
       xpReward: xpReward || 50,
       servings,
       prepTime,
@@ -203,12 +223,6 @@ exports.createRecipe = async (req, res) => {
       tags: tags || [],
       isPremium: isPremium || false
     });
-
-    // Add recipe to country
-    if (!country.recipes.includes(recipe._id)) {
-      country.recipes.push(recipe._id);
-      await country.save();
-    }
 
     res.status(201).json(recipe);
   } catch (error) {
@@ -250,12 +264,6 @@ exports.deleteRecipe = async (req, res) => {
     if (!recipe) {
       return res.status(404).json({ message: "Receta no encontrada" });
     }
-
-    // Remove from country
-    await Country.findByIdAndUpdate(
-      recipe.countryId,
-      { $pull: { recipes: recipeId } }
-    );
 
     res.json({ message: "Receta eliminada" });
   } catch (error) {

@@ -1,7 +1,10 @@
 const LearningPath = require("../models/LearningPath.model");
 const LearningNode = require("../models/LearningNode.model");
+const NodeGroup = require("../models/NodeGroup.model");
 const Country = require("../models/Country.model");
 const UserProgress = require("../models/UserProgress.model");
+const Recipe = require("../models/Recipe.model");
+const Culture = require("../models/Culture.model");
 const nodeProgressService = require("../services/nodeProgress.service");
 
 // ==============================
@@ -90,6 +93,11 @@ exports.getPath = async (req, res) => {
       return res.status(404).json({ message: "Ruta no encontrada" });
     }
 
+    const groups = await NodeGroup.find({
+      pathId,
+      isDeleted: { $ne: true }
+    }).sort({ order: 1 });
+
     // Get user progress if authenticated
     let unlockedNodeIds = [];
     let completedNodeIds = [];
@@ -100,22 +108,63 @@ exports.getPath = async (req, res) => {
       completedNodeIds = userProgress.completedLessons?.map(n => n.toString()) || [];
     }
 
-    // Add status to each node based on unlock state
-    const nodesWithStatus = path.nodes.map((node) => {
-      const nodeIdStr = node._id.toString();
-      let status = 'locked';
-      
-      if (completedNodeIds.includes(nodeIdStr)) {
-        status = 'completed';
-      } else if (unlockedNodeIds.includes(nodeIdStr)) {
-        status = 'active';
-      }
+    // Prefer LearningNode collection (v2) over embedded path.nodes
+    const pathNodes = await LearningNode.find({
+      pathId,
+      isDeleted: { $ne: true },
+      status: 'active'
+    }).sort({ level: 1, positionIndex: 1, order: 1 });
 
-      return {
-        ...node.toObject(),
-        status: status
-      };
-    });
+    // If path has no nodes and is country-based, load recipes/culture as virtual nodes
+    let nodesWithStatus = [];
+
+    if (pathNodes.length === 0 && path.countryId) {
+      if (path.type === 'country_recipe') {
+        const recipes = await Recipe.find({ countryId: path.countryId }).sort({ createdAt: 1 });
+        nodesWithStatus = recipes.map((recipe, index) => ({
+          _id: recipe._id,
+          title: recipe.title,
+          description: recipe.description || `Aprende a preparar ${recipe.title}`,
+          type: 'lesson',
+          difficulty: recipe.difficulty || 2,
+          xpReward: recipe.xpReward || 50,
+          order: index + 1,
+          steps: recipe.steps || [],
+          status: index === 0 ? 'active' : 'locked'
+        }));
+      } else if (path.type === 'country_culture') {
+        const cultureItems = await Culture.find({ countryId: path.countryId }).sort({ createdAt: 1 });
+        nodesWithStatus = cultureItems.map((item, index) => ({
+          _id: item._id,
+          title: item.title,
+          description: item.description || `Explora ${item.title}`,
+          type: 'explanation',
+          difficulty: 1,
+          xpReward: item.xpReward || 30,
+          order: index + 1,
+          steps: item.steps || [],
+          status: index === 0 ? 'active' : 'locked'
+        }));
+      }
+    } else {
+      const sourceNodes = pathNodes.length > 0 ? pathNodes : path.nodes;
+      // Add status to each node based on unlock state
+      nodesWithStatus = sourceNodes.map((node) => {
+        const nodeIdStr = node._id.toString();
+        let status = 'locked';
+
+        if (completedNodeIds.includes(nodeIdStr)) {
+          status = 'completed';
+        } else if (unlockedNodeIds.includes(nodeIdStr)) {
+          status = 'active';
+        }
+
+        return {
+          ...node.toObject(),
+          status: status
+        };
+      });
+    }
 
     res.json({
       path: {
@@ -125,6 +174,11 @@ exports.getPath = async (req, res) => {
         description: path.description,
         icon: path.icon
       },
+      groups: groups.map((group) => ({
+        _id: group._id,
+        title: group.title,
+        order: group.order
+      })),
       nodes: nodesWithStatus
     });
   } catch (error) {

@@ -40,6 +40,68 @@ exports.getCountry = async (req, res) => {
 };
 
 // ==============================
+// GET COUNTRY HUB (unified view)
+// ==============================
+exports.getCountryHub = async (req, res) => {
+  try {
+    const { countryId } = req.params;
+
+    const country = await Country.findById(countryId);
+    if (!country) {
+      return res.status(404).json({ message: "País no encontrado" });
+    }
+
+    const hub = {
+      id: country._id,
+      name: country.name,
+      code: country.code,
+      icon: country.icon,
+      flagUrl: country.flagUrl,
+      isPremium: country.isPremium,
+      sections: {}
+    };
+
+    // Add recipes section if enabled
+    if (country.hasRecipes) {
+      const recipes = await Recipe.find({ countryId }).select('_id title difficulty xpReward imageUrl');
+      hub.sections.recipes = {
+        title: "Recetas",
+        description: "Aprende a cocinar recetas paso a paso",
+        count: recipes.length,
+        items: recipes
+      };
+    }
+
+    // Add cooking school (skills) section if enabled
+    if (country.hasCookingSchool) {
+      const skills = await Skill.find({ countryId }).select('_id name category level');
+      hub.sections.cookingSchool = {
+        title: "Escuela de Cocina",
+        description: "Domina habilidades culinarias",
+        count: skills.length,
+        items: skills
+      };
+    }
+
+    // Add culture section if enabled
+    if (country.hasCulture) {
+      const CultureNode = require('../models/CultureNode.model');
+      const cultureNodes = await CultureNode.find({ countryId }).select('_id title description xp isLocked');
+      hub.sections.culture = {
+        title: "Cultura",
+        description: "Aprende sobre la cocina local",
+        count: cultureNodes.length,
+        items: cultureNodes
+      };
+    }
+
+    res.json(hub);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ==============================
 // GET COUNTRY SECTIONS
 // ==============================
 exports.getCountrySections = async (req, res) => {

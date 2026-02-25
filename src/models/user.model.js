@@ -4,6 +4,7 @@ const userSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    username: { type: String, default: function() { return this.email.split('@')[0]; } }, // Display name for leaderboard
     skillLevel: { type: Number, default: 1 },
     dietType: { type: String, default: "none" },
     timePreference: { type: Number, default: 20 },
@@ -22,6 +23,19 @@ const userSchema = new mongoose.Schema(
     unlockedTechniques: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Technique" },
     ],
+
+    // Countries visited through recipes (gamification map)
+    completedCountries: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "Country" },
+    ],
+
+    // Lives system (Duolingo-like)
+    lives: { type: Number, default: 3, min: 0, max: 3 },
+    lastLifeRefillAt: { type: Date, default: Date.now },
+    lifesLocked: { type: Boolean, default: false }, // true if user has 0 lives
+
+    // Current learning path (like Duolingo's course selection)
+    currentPathId: { type: mongoose.Schema.Types.ObjectId, ref: "LearningPath", default: null },
   },
   { timestamps: true },
 );

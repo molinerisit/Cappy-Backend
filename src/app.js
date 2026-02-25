@@ -31,6 +31,10 @@ const countryRoutes = require("./routes/country.routes");
 const inventoryRoutes = require("./routes/inventory.routes");
 const learningNodeRoutes = require("./routes/learningNode.routes");
 const learningPathRoutes = require("./routes/learningPath.routes");
+const recipeStepRoutes = require('./routes/recipeStep.routes');
+const cultureRoutes = require('./routes/culture.routes');
+const livesRoutes = require('./routes/lives.routes');
+const leaderboardRoutes = require('./routes/leaderboard.routes');
 
 const app = express();
 
@@ -47,6 +51,8 @@ app.use('/api', mainRoutes);
 // ========================================
 app.use('/api/auth', authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use('/api/lives', livesRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 
 // ========================================
 // Legacy Routes (v1.0 - Backward Compatibility)
@@ -63,5 +69,7 @@ app.use('/api/countries', countryRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/nodes', learningNodeRoutes);
 app.use('/api/learning-paths', learningPathRoutes);
+app.use('/api/recipe-steps', recipeStepRoutes);
+app.use('/api/culture', cultureRoutes);
 
 module.exports = app;
