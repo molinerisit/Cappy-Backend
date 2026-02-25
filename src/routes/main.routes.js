@@ -13,6 +13,18 @@ router.get('/countries', mainController.getAllCountries);
 // Get country hub (recipes + culture)
 router.get('/countries/:countryId/hub', mainController.getCountryHub);
 
+// Get recipes by country
+router.get('/recipes/country/:countryId', mainController.getRecipesByCountry);
+
+// Get single recipe
+router.get('/recipes/:recipeId', mainController.getRecipeDetail);
+
+// Get culture by country
+router.get('/culture/country/:countryId', mainController.getCultureByCountry);
+
+// Get single culture
+router.get('/culture/:cultureId', mainController.getCultureDetail);
+
 // Get all goal paths for Seguir Objetivos
 router.get('/goals', mainController.getGoalPaths);
 

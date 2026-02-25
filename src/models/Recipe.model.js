@@ -21,7 +21,7 @@ const recipeSchema = new mongoose.Schema({
   countryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Country', required: true },
   title: { type: String, required: true },
   description: { type: String },
-  difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
+  difficulty: { type: Number, min: 1, max: 3, default: 2 },
   xpReward: { type: Number, default: 50, min: 10 },
   servings: { type: Number },
   prepTime: { type: Number }, // minutes

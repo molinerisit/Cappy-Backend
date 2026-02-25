@@ -3,6 +3,13 @@ const Country = require('../models/Country.model');
 const LearningPath = require('../models/LearningPath.model');
 const LearningNode = require('../models/LearningNode.model');
 
+// Helper to convert difficulty strings to numbers
+const convertDifficulty = (val) => {
+  if (typeof val === 'number') return Math.min(3, Math.max(1, val));
+  const diffMap = { 'easy': 1, 'medium': 2, 'hard': 3 };
+  return diffMap[String(val).toLowerCase()] || 2;
+};
+
 const seedLearningPaths = async () => {
   try {
     console.log('Starting LearningPath seed...');

@@ -1,10 +1,49 @@
 const mongoose = require("mongoose");
 
-// Step schema for interactive flow
+const NODE_TYPES = [
+  'recipe',
+  'explanation',
+  'tips',
+  'quiz',
+  'technique',
+  'cultural',
+  'challenge',
+  // Legacy types (keep for backward compatibility)
+  'skill'
+];
+
+const NODE_STATUS = ['active', 'draft', 'archived'];
+
+const nodeTypeToIconKey = {
+  recipe: 'recipe',
+  explanation: 'explanation',
+  tips: 'tips',
+  quiz: 'quiz',
+  technique: 'technique',
+  cultural: 'cultural',
+  challenge: 'challenge',
+  skill: 'technique'
+};
+
+const nodeCardSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['text', 'list', 'image', 'video', 'animation', 'quiz', 'timer'],
+      required: true
+    },
+    data: { type: mongoose.Schema.Types.Mixed, default: {} }
+  },
+  { _id: true }
+);
+
 const nodeStepSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
+    order: { type: Number, default: 1 },
     description: String,
+    estimatedTime: Number,
+    // Legacy fields kept for compatibility
     instruction: String,
     type: {
       type: String,
@@ -14,21 +53,18 @@ const nodeStepSchema = new mongoose.Schema(
     image: String,
     video: String,
     animationUrl: String,
-    // For quiz steps
     question: String,
     options: [String],
     correctAnswer: String,
-    // For checklist steps (recipes)
     checklist: [{ item: String, required: Boolean }],
-    // Validation logic
     validationLogic: mongoose.Schema.Types.Mixed,
     feedback: String,
-    duration: { type: Number, default: 0 }, // in seconds
+    duration: { type: Number, default: 0 },
     tips: [String],
     media: String,
-    cards: { type: [mongoose.Schema.Types.Mixed], default: [] }
+    cards: { type: [nodeCardSchema], default: [] }
   },
-  { _id: false }
+  { _id: true }
 );
 
 // Ingredient/Tool schema for recipes
@@ -46,16 +82,13 @@ const learningNodeSchema = new mongoose.Schema(
   {
     pathId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "LearningPath",
-      required: true
+      ref: "LearningPath"
     },
     title: { type: String, required: true },
     description: String,
-    type: {
-      type: String,
-      enum: ["recipe", "skill", "quiz"],
-      required: true
-    },
+    type: { type: String, enum: NODE_TYPES, required: true },
+    iconKey: { type: String, default: 'recipe' },
+    status: { type: String, enum: NODE_STATUS, default: 'active' },
     difficulty: {
       type: Number,
       min: 1,
@@ -64,6 +97,9 @@ const learningNodeSchema = new mongoose.Schema(
     },
     xpReward: { type: Number, default: 50 },
     order: { type: Number, default: 0 },
+    groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'NodeGroup' },
+    positionIndex: { type: Number, default: 1 },
+    groupTitle: { type: String, default: '' },
     
     // Unlock system
     requiredNodes: [
@@ -100,6 +136,13 @@ const learningNodeSchema = new mongoose.Schema(
     // General metadata
     tips: [String],
     tags: [String],
+    metadata: {
+      difficulty: String,
+      estimatedTime: Number,
+      tags: [String],
+      locale: String,
+      source: String
+    },
     isPremium: { type: Boolean, default: false },
     media: String, // Main image/video
     
@@ -111,14 +154,49 @@ const learningNodeSchema = new mongoose.Schema(
       }
     ],
     
+    // Module references (imported content)
+    referencedRecipes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Recipe"
+      }
+    ],
+    referencedCulture: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Culture"
+      }
+    ],
+    referencedNodes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "LearningNode"
+      }
+    ],
+    originalNodeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'LearningNode',
+      default: null
+    },
+    isLinked: { type: Boolean, default: false },
+    isDeleted: { type: Boolean, default: false },
+    
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
   },
   { timestamps: true }
 );
 
+learningNodeSchema.pre('validate', function() {
+  if (this.type) {
+    this.iconKey = nodeTypeToIconKey[this.type] || this.iconKey;
+  }
+});
+
 // Indexes for efficient querying
 learningNodeSchema.index({ pathId: 1, order: 1 });
+learningNodeSchema.index({ pathId: 1, level: 1, positionIndex: 1 });
+learningNodeSchema.index({ originalNodeId: 1, isLinked: 1 });
 learningNodeSchema.index({ type: 1 });
 learningNodeSchema.index({ difficulty: 1 });
 

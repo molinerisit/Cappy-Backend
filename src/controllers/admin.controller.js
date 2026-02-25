@@ -4,6 +4,234 @@ const LearningPath = require("../models/LearningPath.model");
 const LearningNode = require("../models/LearningNode.model");
 const Country = require("../models/Country.model");
 const Culture = require("../models/Culture.model");
+const Recipe = require("../models/Recipe.model");
+const adminContentService = require("../services/adminContent.service");
+
+const sendError = (res, error) => {
+  const status = error.statusCode || 500;
+  res.status(status).json({ message: error.message });
+};
+
+// =====================================================
+// ADMIN CONTENT V2 (Groups + Nodes)
+// =====================================================
+
+exports.getGroupsByPath = async (req, res) => {
+  try {
+    const { pathId } = req.params;
+    const groups = await adminContentService.listGroupsByPath(pathId);
+    res.json(groups);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.createGroup = async (req, res) => {
+  try {
+    const { pathId } = req.params;
+    const group = await adminContentService.createGroup(pathId, req.body || {});
+    res.status(201).json(group);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.updateGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const group = await adminContentService.updateGroup(groupId, req.body || {});
+    res.json(group);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.deleteGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const group = await adminContentService.deleteGroup(groupId);
+    res.json(group);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.getNodesByPathV2 = async (req, res) => {
+  try {
+    const { pathId } = req.params;
+    // Use new function that includes recipes/culture as virtual nodes if no learning nodes exist
+    const nodes = await adminContentService.listNodesByPathWithContent(pathId);
+    res.json(nodes);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.createNodeV2 = async (req, res) => {
+  try {
+    const node = await adminContentService.createNode(req.body || {});
+    res.status(201).json(node);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.updateNodeV2 = async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const node = await adminContentService.updateNode(nodeId, req.body || {});
+    res.json(node);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.deleteNodeV2 = async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const node = await adminContentService.deleteNode(nodeId);
+    res.json(node);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.reorderNodesV2 = async (req, res) => {
+  try {
+    const { pathId } = req.params;
+    const nodes = await adminContentService.reorderNodes(
+      pathId,
+      req.body?.updates || []
+    );
+    res.json(nodes);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.importNodeV2 = async (req, res) => {
+  try {
+    const node = await adminContentService.importNode(req.body || {});
+    res.status(201).json(node);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.archiveNodeV2 = async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const node = await adminContentService.archiveNode(nodeId);
+    res.json(node);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.duplicateNodeV2 = async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const node = await adminContentService.duplicateNode(
+      nodeId,
+      req.body?.targetPathId
+    );
+    res.status(201).json(node);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.getNodeRelations = async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const relations = await adminContentService.getNodeRelations(nodeId);
+    res.json(relations);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.listNodeLibrary = async (req, res) => {
+  try {
+    const nodes = await adminContentService.listNodeLibrary(req.query || {});
+    res.json(nodes);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.addNodeStep = async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const node = await adminContentService.addStep(nodeId, req.body || {});
+    res.status(201).json(node);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.updateNodeStep = async (req, res) => {
+  try {
+    const { nodeId, stepId } = req.params;
+    const node = await adminContentService.updateStep(
+      nodeId,
+      stepId,
+      req.body || {}
+    );
+    res.json(node);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.deleteNodeStep = async (req, res) => {
+  try {
+    const { nodeId, stepId } = req.params;
+    const node = await adminContentService.deleteStep(nodeId, stepId);
+    res.json(node);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.addStepCard = async (req, res) => {
+  try {
+    const { nodeId, stepId } = req.params;
+    const node = await adminContentService.addCard(
+      nodeId,
+      stepId,
+      req.body || {}
+    );
+    res.status(201).json(node);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.updateStepCard = async (req, res) => {
+  try {
+    const { nodeId, stepId, cardId } = req.params;
+    const node = await adminContentService.updateCard(
+      nodeId,
+      stepId,
+      cardId,
+      req.body || {}
+    );
+    res.json(node);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+exports.deleteStepCard = async (req, res) => {
+  try {
+    const { nodeId, stepId, cardId } = req.params;
+    const node = await adminContentService.deleteCard(nodeId, stepId, cardId);
+    res.json(node);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
 
 
 // =====================================================
@@ -17,10 +245,16 @@ exports.getAllLearningPaths = async (req, res) => {
   try {
     const paths = await LearningPath.find()
       .populate('nodes', 'title type difficulty xpReward order')
-      .populate('countryId', 'name code icon')
+      .lean()  // Return plain JS objects, not Mongoose docs
       .sort({ type: 1, createdAt: -1 });
     
-    res.json(paths);
+    // Ensure countryId is a string, not an object
+    const cleanedPaths = paths.map(path => ({
+      ...path,
+      countryId: path.countryId ? path.countryId.toString() : null
+    }));
+    
+    res.json(cleanedPaths);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -188,6 +422,22 @@ exports.getNodesByPath = async (req, res) => {
     const nodes = await LearningNode.find({ pathId })
       .populate('requiredNodes', 'title')
       .sort({ order: 1 });
+
+    res.json(nodes);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Get ALL learning nodes (global, for import)
+ */
+exports.getAllLearningNodes = async (req, res) => {
+  try {
+    const nodes = await LearningNode.find()
+      .populate('pathId', 'title type')
+      .populate('requiredNodes', 'title')
+      .sort({ pathId: 1, order: 1 });
 
     res.json(nodes);
   } catch (error) {
@@ -382,6 +632,156 @@ exports.reorderNodes = async (req, res) => {
     const updatedNodes = await LearningNode.find({ pathId }).sort({ order: 1 });
 
     res.json(updatedNodes);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Import module (recipe, culture, or node) into a learning node
+ */
+exports.importModule = async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const { type, referenceId } = req.body;
+
+    // Validate input
+    if (!type || !referenceId) {
+      return res.status(400).json({ 
+        message: "type y referenceId son obligatorios" 
+      });
+    }
+
+    if (!['recipe', 'culture', 'node'].includes(type)) {
+      return res.status(400).json({ 
+        message: "type debe ser 'recipe', 'culture' o 'node'" 
+      });
+    }
+
+    // Find the node
+    const node = await LearningNode.findById(nodeId);
+    if (!node) {
+      return res.status(404).json({ message: "Nodo no encontrado" });
+    }
+
+    // Validate reference exists
+    let referenceExists = false;
+    let fieldName = '';
+
+    if (type === 'recipe') {
+      const recipe = await Recipe.findById(referenceId);
+      if (!recipe) {
+        return res.status(404).json({ message: "Receta no encontrada" });
+      }
+      referenceExists = true;
+      fieldName = 'referencedRecipes';
+    } else if (type === 'culture') {
+      const culture = await Culture.findById(referenceId);
+      if (!culture) {
+        return res.status(404).json({ message: "Contenido cultural no encontrado" });
+      }
+      referenceExists = true;
+      fieldName = 'referencedCulture';
+    } else if (type === 'node') {
+      const refNode = await LearningNode.findById(referenceId);
+      if (!refNode) {
+        return res.status(404).json({ message: "Nodo referenciado no encontrado" });
+      }
+      // Prevent self-reference
+      if (referenceId === nodeId) {
+        return res.status(400).json({ 
+          message: "No se puede referenciar el mismo nodo" 
+        });
+      }
+      referenceExists = true;
+      fieldName = 'referencedNodes';
+    }
+
+    // Check if reference already exists
+    if (node[fieldName] && node[fieldName].includes(referenceId)) {
+      return res.status(400).json({ 
+        message: "Esta referencia ya existe en el nodo" 
+      });
+    }
+
+    // Add reference
+    if (!node[fieldName]) {
+      node[fieldName] = [];
+    }
+    node[fieldName].push(referenceId);
+    await node.save();
+
+    // Return updated node with populated references
+    const updatedNode = await LearningNode.findById(nodeId)
+      .populate('referencedRecipes')
+      .populate('referencedCulture')
+      .populate('referencedNodes');
+
+    res.json({
+      message: "Módulo importado exitosamente",
+      node: updatedNode
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Remove module (recipe, culture, or node) from a learning node
+ */
+exports.removeModule = async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const { type, referenceId } = req.body;
+
+    // Validate input
+    if (!type || !referenceId) {
+      return res.status(400).json({ 
+        message: "type y referenceId son obligatorios" 
+      });
+    }
+
+    if (!['recipe', 'culture', 'node'].includes(type)) {
+      return res.status(400).json({ 
+        message: "type debe ser 'recipe', 'culture' o 'node'" 
+      });
+    }
+
+    // Find the node
+    const node = await LearningNode.findById(nodeId);
+    if (!node) {
+      return res.status(404).json({ message: "Nodo no encontrado" });
+    }
+
+    let fieldName = '';
+    if (type === 'recipe') {
+      fieldName = 'referencedRecipes';
+    } else if (type === 'culture') {
+      fieldName = 'referencedCulture';
+    } else if (type === 'node') {
+      fieldName = 'referencedNodes';
+    }
+
+    const currentRefs = (node[fieldName] || []).map((ref) => ref.toString());
+    if (!currentRefs.includes(referenceId.toString())) {
+      return res.status(400).json({ 
+        message: "La referencia no existe en el nodo" 
+      });
+    }
+
+    const updatedNode = await LearningNode.findByIdAndUpdate(
+      nodeId,
+      { $pull: { [fieldName]: referenceId } },
+      { new: true }
+    )
+      .populate('referencedRecipes')
+      .populate('referencedCulture')
+      .populate('referencedNodes');
+
+    res.json({
+      message: "Módulo desvinculado exitosamente",
+      node: updatedNode
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -815,5 +1215,78 @@ exports.deleteCultureStep = async (req, res) => {
     res.json(culture);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// =====================================================
+// ADMIN RECIPES BY COUNTRY (for PathContentScreen)
+// =====================================================
+
+/**
+ * List recipes by country ID
+ */
+exports.listRecipesByCountry = async (req, res) => {
+  try {
+    const { countryId } = req.params;
+    
+    const recipes = await Recipe.find({
+      countryId,
+      deleted: { $ne: true }
+    })
+      .select('_id title difficulty xpReward prepTime cookTime imageUrl')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json(recipes);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+/**
+ * Get recipe details (admin view)
+ */
+exports.getRecipeDetails = async (req, res) => {
+  try {
+    const { recipeId } = req.params;
+    
+    const recipe = await Recipe.findOne({
+      _id: recipeId,
+      deleted: { $ne: true }
+    })
+      .populate('countryId', 'name');
+
+    if (!recipe) {
+      return res.status(404).json({ message: "Receta no encontrada" });
+    }
+
+    res.json(recipe);
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+// =====================================================
+// ADMIN CULTURE NODES BY COUNTRY
+// =====================================================
+
+/**
+ * List culture nodes by country ID
+ */
+exports.listCultureNodesByCountry = async (req, res) => {
+  try {
+    const { countryId } = req.params;
+    
+    const cultureNodes = await require('../models/CultureNode.model').find({
+      countryId,
+      deleted: { $ne: true }
+    })
+      .select('_id title description xp')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json(cultureNodes);
+  } catch (error) {
+    sendError(res, error);
   }
 };

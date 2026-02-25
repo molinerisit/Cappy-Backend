@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const learningNodeController = require("../controllers/learningNode.controller");
 const authMiddleware = require("../middleware/auth.middleware");
+const checkLivesAvailable = require("../middleware/checkLivesAvailable");
 
 // Public routes
 // Get country's learning map (with status)
@@ -20,10 +21,8 @@ router.get("/type/:countryId/:type", learningNodeController.getNodesByType);
 router.get("/search/:countryId", learningNodeController.searchNodes);
 
 // Protected routes (learner actions)
-// Complete a node
-router.post("/complete", authMiddleware, learningNodeController.completeNode);
-
-// Admin routes
+// Complete a node - REQUIRES LIVES
+router.post("/complete", authMiddleware, checkLivesAvailable, learningNodeController.completeNode);
 // Create node
 router.post("/", authMiddleware, learningNodeController.createNode);
 

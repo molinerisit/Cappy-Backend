@@ -6,5 +6,6 @@ const authMiddleware = require('../middleware/auth.middleware');
 router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.get('/profile', authMiddleware, authController.getProfile);
+router.post('/change-path', authMiddleware, authController.changeCurrentPath);
 
 module.exports = router;

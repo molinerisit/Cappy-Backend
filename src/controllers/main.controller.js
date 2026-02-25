@@ -3,6 +3,8 @@ const LearningPath = require('../models/LearningPath.model');
 const LearningNode = require('../models/LearningNode.model');
 const UserProgress = require('../models/UserProgress.model');
 const User = require('../models/user.model');
+const Recipe = require('../models/Recipe.model');
+const Culture = require('../models/Culture.model');
 const { getOrCreateNodeProgress } = require('../services/nodeProgress.service');
 
 // ========================================
@@ -33,18 +35,61 @@ exports.getCountryHub = async (req, res) => {
       return res.status(404).json({ message: 'País no encontrado' });
     }
 
-    // Get both paths for this country
-    const recipePath = await LearningPath.findOne({
+    // Get or create recipe path for this country
+    let recipePath = await LearningPath.findOne({
       countryId,
       type: 'country_recipe',
       isActive: true
     }).populate('nodes');
 
-    const culturePath = await LearningPath.findOne({
+    // Auto-create recipe path if it doesn't exist
+    if (!recipePath) {
+      recipePath = await LearningPath.create({
+        type: 'country_recipe',
+        countryId,
+        title: `Recetas de ${country.name}`,
+        description: `Aprende a cocinar los platos típicos de ${country.name}`,
+        icon: '🍽️',
+        order: 1,
+        nodes: [],
+        metadata: {
+          totalSteps: 0,
+          estimatedDuration: 0,
+          difficulty: 'intermediate'
+        },
+        isActive: true,
+        isPremium: country.isPremium || false
+      });
+      console.log(`✓ Auto-created recipe path for ${country.name}`);
+    }
+
+    // Get or create culture path for this country
+    let culturePath = await LearningPath.findOne({
       countryId,
       type: 'country_culture',
       isActive: true
     }).populate('nodes');
+
+    // Auto-create culture path if it doesn't exist
+    if (!culturePath) {
+      culturePath = await LearningPath.create({
+        type: 'country_culture',
+        countryId,
+        title: `Cultura de ${country.name}`,
+        description: `Descubre la historia y tradiciones culinarias de ${country.name}`,
+        icon: '📚',
+        order: 2,
+        nodes: [],
+        metadata: {
+          totalSteps: 0,
+          estimatedDuration: 0,
+          difficulty: 'easy'
+        },
+        isActive: true,
+        isPremium: country.isPremium || false
+      });
+      console.log(`✓ Auto-created culture path for ${country.name}`);
+    }
 
     // Get user progress for both paths (if authenticated)
     let recipeProgress = null;
@@ -83,18 +128,46 @@ exports.getCountryHub = async (req, res) => {
       const unlockedIds = recipeProgress?.unlockedLessons || [];
       const completedIds = recipeProgress?.completedLessons || [];
 
-      response.recipes = {
-        pathId: recipePath._id,
-        title: recipePath.title,
-        description: recipePath.description,
-        nodes: recipePath.nodes.map(node => ({
+      // If path has no nodes, load recipes as virtual nodes
+      let nodesData = recipePath.nodes || [];
+      
+      if (nodesData.length === 0) {
+        const recipes = await Recipe.find({ countryId }).sort({ createdAt: 1 });
+        nodesData = recipes.map((recipe, index) => ({
+          _id: recipe._id,
+          title: recipe.title,
+          description: recipe.description || `Aprende a preparar ${recipe.title}`,
+          type: 'lesson',
+          difficulty: recipe.difficulty || 2,
+          xpReward: recipe.xpReward || 50,
+          order: index + 1,
+          steps: recipe.steps || [],
+          // Mark first recipe as unlocked, rest locked
+          status: index === 0 ? 'unlocked' : 'locked'
+        }));
+      } else {
+        nodesData = nodesData.map(node => ({
           ...node.toObject(),
           status: completedIds.includes(node._id.toString())
             ? 'completed'
             : unlockedIds.includes(node._id.toString())
             ? 'unlocked'
             : 'locked'
-        }))
+        }));
+      }
+
+      response.recipes = {
+        _id: recipePath._id,
+        type: recipePath.type,
+        countryId: recipePath.countryId,
+        title: recipePath.title,
+        description: recipePath.description,
+        icon: recipePath.icon || '🍽️',
+        order: recipePath.order,
+        isPremium: recipePath.isPremium,
+        isActive: recipePath.isActive,
+        createdAt: recipePath.createdAt,
+        nodes: nodesData
       };
     }
 
@@ -103,22 +176,129 @@ exports.getCountryHub = async (req, res) => {
       const unlockedIds = cultureProgress?.unlockedLessons || [];
       const completedIds = cultureProgress?.completedLessons || [];
 
-      response.culture = {
-        pathId: culturePath._id,
-        title: culturePath.title,
-        description: culturePath.description,
-        nodes: culturePath.nodes.map(node => ({
+      // If path has no nodes, load culture as virtual nodes
+      let nodesData = culturePath.nodes || [];
+      
+      if (nodesData.length === 0) {
+        const cultureItems = await Culture.find({ countryId }).sort({ createdAt: 1 });
+        nodesData = cultureItems.map((item, index) => ({
+          _id: item._id,
+          title: item.title,
+          description: item.description || `Explora ${item.title}`,
+          type: 'explanation',
+          difficulty: 1,
+          xpReward: item.xpReward || 30,
+          order: index + 1,
+          steps: item.steps || [],
+          // Mark first culture item as unlocked, rest locked
+          status: index === 0 ? 'unlocked' : 'locked'
+        }));
+      } else {
+        nodesData = nodesData.map(node => ({
           ...node.toObject(),
           status: completedIds.includes(node._id.toString())
             ? 'completed'
             : unlockedIds.includes(node._id.toString())
             ? 'unlocked'
             : 'locked'
-        }))
+        }));
+      }
+
+      response.culture = {
+        _id: culturePath._id,
+        type: culturePath.type,
+        countryId: culturePath.countryId,
+        title: culturePath.title,
+        description: culturePath.description,
+        icon: culturePath.icon || '📚',
+        order: culturePath.order,
+        isPremium: culturePath.isPremium,
+        isActive: culturePath.isActive,
+        createdAt: culturePath.createdAt,
+        nodes: nodesData
       };
     }
 
     res.json(response);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ========================================
+// GET RECIPES BY COUNTRY (Public)
+// ========================================
+exports.getRecipesByCountry = async (req, res) => {
+  try {
+    const { countryId } = req.params;
+
+    const recipes = await Recipe.find({ countryId })
+      .sort({ createdAt: 1 })
+      .select('title description difficulty xpReward prepTime cookTime imageUrl steps');
+
+    res.json(recipes);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ========================================
+// GET CULTURE BY COUNTRY (Public)
+// ========================================
+exports.getCultureByCountry = async (req, res) => {
+  try {
+    const { countryId } = req.params;
+
+    const cultureItems = await Culture.find({ countryId })
+      .sort({ createdAt: 1 })
+      .select('title description xpReward imageUrl steps');
+
+    res.json(cultureItems);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ========================================
+// GET SINGLE RECIPE (Public)
+// ========================================
+exports.getRecipeDetail = async (req, res) => {
+  try {
+    const { recipeId } = req.params;
+
+    const recipe = await Recipe.findById(recipeId);
+    if (!recipe) {
+      return res.status(404).json({ message: 'Receta no encontrada' });
+    }
+
+    // Find the node that references this recipe
+    const node = await LearningNode.findOne({
+      referencedRecipes: recipeId
+    });
+
+    // Return recipe with associated node (if exists)
+    res.json({
+      recipe,
+      node: node || null
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ========================================
+// GET SINGLE CULTURE (Public)
+// ========================================
+exports.getCultureDetail = async (req, res) => {
+  try {
+    const { cultureId } = req.params;
+
+    const cultureItem = await Culture.findById(cultureId);
+    if (!cultureItem) {
+      return res.status(404).json({ message: 'Artículo cultural no encontrado' });
+    }
+
+    res.json(cultureItem);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

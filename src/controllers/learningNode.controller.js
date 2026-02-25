@@ -4,6 +4,52 @@ const Country = require("../models/Country.model");
 const UserProgress = require("../models/UserProgress.model");
 
 // ==============================
+// ==============================
+// IMPORT NODES/RECIPES (Admin)
+// ==============================
+exports.importContent = async (req, res) => {
+  try {
+    const { targetPathId, nodeIds = [], recipeIds = [] } = req.body;
+    if (!targetPathId || (!nodeIds.length && !recipeIds.length)) {
+      return res.status(400).json({ message: "targetPathId y nodeIds/recipeIds requeridos" });
+    }
+    const importedNodes = [];
+    for (const nodeId of nodeIds) {
+      const node = await LearningNode.findById(nodeId);
+      if (node) {
+        const clone = node.toObject();
+        delete clone._id;
+        clone.pathId = targetPathId;
+        clone.title = clone.title + " (importado)";
+        const newNode = await LearningNode.create(clone);
+        importedNodes.push(newNode);
+      }
+    }
+    // Import recipes as nodes
+    for (const recipeId of recipeIds) {
+      const Recipe = require('../models/Recipe.model');
+      const recipe = await Recipe.findById(recipeId);
+      if (recipe) {
+        const nodeData = {
+          pathId: targetPathId,
+          title: recipe.title + " (importado)",
+          type: "recipe",
+          steps: recipe.steps || [],
+          ingredients: recipe.ingredients || [],
+          prepTime: recipe.prepTime || 0,
+          cookTime: recipe.cookTime || 0,
+          servings: recipe.servings || 1,
+          xpReward: 50,
+        };
+        const newNode = await LearningNode.create(nodeData);
+        importedNodes.push(newNode);
+      }
+    }
+    res.json({ imported: importedNodes });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 // GET MAP NODES BY COUNTRY (LEGACY - for backward compatibility)
 // ==============================
 exports.getCountryMap = async (req, res) => {
@@ -275,6 +321,8 @@ exports.createNode = async (req, res) => {
 
     // Check if it's a pathId (new) or countryId (legacy)
     let path = null;
+    let resolvedCountryId = countryId || null;
+    
     try {
       path = await LearningPath.findById(nodePathId);
     } catch (e) {
@@ -283,10 +331,11 @@ exports.createNode = async (req, res) => {
       if (!country) {
         return res.status(404).json({ message: "País o camino no encontrado" });
       }
+      resolvedCountryId = nodePathId;  // Use nodePathId as countryId
     }
 
-    if (!path && !countryId) {
-      return res.status(404).json({ message: "LearningPath no encontrado" });
+    if (!path && !resolvedCountryId) {
+      return res.status(404).json({ message: "LearningPath o País no encontrado" });
     }
 
     const node = await LearningNode.create({
@@ -318,9 +367,9 @@ exports.createNode = async (req, res) => {
         path.nodes.push(node._id);
         await path.save();
       }
-    } else if (countryId) {
+    } else if (resolvedCountryId) {
       // Legacy: add to country
-      const country = await Country.findById(countryId);
+      const country = await Country.findById(resolvedCountryId);
       if (country && !country.learningNodes.includes(node._id)) {
         country.learningNodes.push(node._id);
         await country.save();
