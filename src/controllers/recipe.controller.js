@@ -9,12 +9,17 @@ exports.getRecipesByCountry = async (req, res) => {
   try {
     const { countryId } = req.params;
 
-    const country = await Country.findById(countryId).populate('recipes');
+    const country = await Country.findById(countryId).select('_id');
     if (!country) {
       return res.status(404).json({ message: "País no encontrado" });
     }
 
-    res.json(country.recipes);
+    const recipes = await Recipe.find({
+      countryId,
+      isActive: { $ne: false },
+    }).sort({ createdAt: -1 });
+
+    res.json(recipes);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

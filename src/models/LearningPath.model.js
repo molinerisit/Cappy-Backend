@@ -1,40 +1,79 @@
 const mongoose = require("mongoose");
 
+/**
+ * LearningPath Schema - REFACTORIZADO v2
+ * 
+ * Camino de aprendizaje que contiene:
+ * - Grupos (NodeGroup)
+ * - Nodos (LearningNode)
+ * - Pasos y Cards dentro de nodos
+ */
 const learningPathSchema = new mongoose.Schema(
   {
+    // ========== TIPO DE CAMINO ==========
     type: {
       type: String,
       enum: ["country_recipe", "country_culture", "goal"],
-      required: true
+      required: true,
+      index: true
     },
     
-    // For country-based paths
+    // ========== RELACIONES ==========
+    // Para country-based paths
     countryId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Country"
+      ref: "Country",
+      index: true
     },
     
-    // For goal-based paths
+    // Para goal-based paths
     goalType: {
       type: String,
       enum: ["cooking_school", "lose_weight", "gain_muscle", "become_vegan"],
       description: "Type of goal (only for type: 'goal')"
     },
+
+    // ========== CONTENIDO BÁSICO ==========
+    title: { 
+      type: String, 
+      required: true,
+      trim: true
+    },
+
+    description: {
+      type: String,
+      default: ''
+    },
+
+    icon: { 
+      type: String, 
+      default: "📚" 
+    },
+
+    order: { 
+      type: Number, 
+      default: 0,
+      index: true
+    },
+
+    // ========== ESTRUCTURA JERÁRQUICA (NUEVA) ==========
+    // Grupos dentro del camino (nueva arquitectura modular)
+    groups: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "NodeGroup"
+      }
+    ],
     
-    // Common fields
-    title: { type: String, required: true },
-    description: String,
-    icon: { type: String, default: "📚" },
-    order: { type: Number, default: 0 },
-    
-    // Related learning nodes
+    // Related learning nodes (legacy + nueva)
     nodes: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "LearningNode"
       }
     ],
-    
+
+    // ========== METADATA ==========
     metadata: {
       totalSteps: { type: Number, default: 0 },
       estimatedDuration: Number, // in minutes
@@ -44,19 +83,62 @@ const learningPathSchema = new mongoose.Schema(
         default: "intermediate"
       }
     },
-    
-    isActive: { type: Boolean, default: true },
-    isPremium: { type: Boolean, default: false },
-    
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now }
+
+    // ========== ESTADO ==========
+    isActive: { 
+      type: Boolean, 
+      default: true,
+      index: true
+    },
+
+    isPremium: { 
+      type: Boolean, 
+      default: false 
+    },
+
+    // ========== AUDITORÍA ==========
+    lastModifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+
+    // ========== SOFT DELETE ==========
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null
+    },
+
+    // ========== TIMESTAMPS ==========
+    createdAt: { 
+      type: Date, 
+      default: Date.now 
+    },
+
+    updatedAt: { 
+      type: Date, 
+      default: Date.now 
+    }
   },
-  { timestamps: true }
+  { 
+    timestamps: true,
+    collection: 'learningpaths'
+  }
 );
 
-// Indexes for efficient querying
+// =====================================================
+// ÍNDICES PARA OPTIMIZACIÓN
+// =====================================================
 learningPathSchema.index({ type: 1, countryId: 1 });
 learningPathSchema.index({ type: 1, goalType: 1 });
 learningPathSchema.index({ countryId: 1 });
+learningPathSchema.index({ isActive: 1, isDeleted: 1 });
+learningPathSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("LearningPath", learningPathSchema);

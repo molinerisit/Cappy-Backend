@@ -11,7 +11,10 @@ exports.getAllPaths = async (req, res) => {
   try {
     const paths = await LearningPath.find({ isActive: true })
       .populate('nodes', 'title type difficulty xpReward order')
-      .sort({ type: 1, order: 1 });
+      .populate('countryId', 'name code icon')
+      .select('type title description icon countryId nodes order')
+      .sort({ type: 1, order: 1 })
+      .lean();
 
     // Group by type for easier frontend consumption
     const grouped = {
@@ -21,11 +24,9 @@ exports.getAllPaths = async (req, res) => {
 
     for (const path of paths) {
       if (path.type === 'country_recipe' || path.type === 'country_culture') {
-        // Get country details
-        const country = await Country.findById(path.countryId).select('name code icon');
         grouped.culinaryCountries.push({
-          ...path.toObject(),
-          country
+          ...path,
+          country: path.countryId
         });
       } else if (path.type === 'goal') {
         grouped.goals.push(path);
@@ -45,21 +46,22 @@ exports.getCountryHub = async (req, res) => {
   try {
     const { countryId } = req.params;
 
-    const country = await Country.findById(countryId);
+    // Ejecutar las 3 queries en paralelo con Promise.all
+    const [country, recipePath, culturePath] = await Promise.all([
+      Country.findById(countryId).select('name code icon description').lean(),
+      LearningPath.findOne({ countryId, type: 'country_recipe' })
+        .populate('nodes', 'title type difficulty xpReward order')
+        .select('title description nodes')
+        .lean(),
+      LearningPath.findOne({ countryId, type: 'country_culture' })
+        .populate('nodes', 'title type difficulty xpReward order')
+        .select('title description nodes')
+        .lean()
+    ]);
+
     if (!country) {
       return res.status(404).json({ message: "País no encontrado" });
     }
-
-    // Get both recipe and culture paths for this country
-    const recipePath = await LearningPath.findOne({
-      countryId,
-      type: 'country_recipe'
-    }).populate('nodes');
-
-    const culturePath = await LearningPath.findOne({
-      countryId,
-      type: 'country_culture'
-    }).populate('nodes');
 
     res.json({
       country: {
@@ -85,7 +87,20 @@ exports.getPath = async (req, res) => {
     const { pathId } = req.params;
     const userId = req.user?.id;
 
-    const path = await LearningPath.findById(pathId).populate('nodes');
+    const path = await LearningPath.findById(pathId)
+      .populate({
+        path: 'groups',
+        match: { isDeleted: false },
+        select: '_id title order pathId',
+        options: { sort: { order: 1 } }
+      })
+      .populate({
+        path: 'nodes',
+        populate: {
+          path: 'groupId',
+          select: '_id title order pathId'
+        }
+      });
     if (!path) {
       return res.status(404).json({ message: "Ruta no encontrada" });
     }
@@ -111,8 +126,14 @@ exports.getPath = async (req, res) => {
         status = 'active';
       }
 
+      const nodeObj = node.toObject();
+      const populatedGroup = nodeObj.groupId && typeof nodeObj.groupId === 'object'
+        ? nodeObj.groupId
+        : null;
+
       return {
-        ...node.toObject(),
+        ...nodeObj,
+        groupTitle: populatedGroup?.title || nodeObj.groupTitle || '',
         status: status
       };
     });
@@ -125,6 +146,7 @@ exports.getPath = async (req, res) => {
         description: path.description,
         icon: path.icon
       },
+      groups: path.groups || [],
       nodes: nodesWithStatus
     });
   } catch (error) {

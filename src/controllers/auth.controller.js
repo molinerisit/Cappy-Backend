@@ -100,3 +100,49 @@ exports.getProfile = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.changePath = async (req, res) => {
+  try {
+    const { pathId } = req.body;
+    const userId = req.user._id;
+
+    if (!pathId) {
+      return res.status(400).json({ message: 'pathId is required' });
+    }
+
+    const UserProgress = require('../models/UserProgress.model');
+    const LearningPath = require('../models/LearningPath.model');
+
+    // Verificar que el path existe
+    const pathExists = await LearningPath.findById(pathId);
+    if (!pathExists) {
+      return res.status(404).json({ message: 'Learning path not found' });
+    }
+
+    // Crear o actualizar el UserProgress para este path
+    let userProgress = await UserProgress.findOne({ userId, pathId });
+    
+    if (!userProgress) {
+      userProgress = await UserProgress.create({
+        userId,
+        pathId,
+        xp: 0,
+        level: 1,
+        streak: 0
+      });
+    }
+
+    res.json({ 
+      message: 'Path changed successfully',
+      pathId,
+      userProgress: {
+        xp: userProgress.xp,
+        level: userProgress.level,
+        streak: userProgress.streak
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

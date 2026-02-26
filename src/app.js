@@ -10,11 +10,13 @@ const mainRoutes = require('./routes/main.routes');
 // AUTH ROUTES
 // ========================================
 const authRoutes = require('./routes/auth.routes');
+const livesRoutes = require('./routes/lives.routes');
 
 // ========================================
 // ADMIN ROUTES
 // ========================================
 const adminRoutes = require("./routes/admin.routes");
+const adminV2Routes = require("./routes/adminV2.routes");
 
 // ========================================
 // LEGACY ROUTES (for backward compatibility)
@@ -46,7 +48,9 @@ app.use('/api', mainRoutes);
 // Core Routes
 // ========================================
 app.use('/api/auth', authRoutes);
+app.use('/api/lives', livesRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin/v2", adminV2Routes); // ← NUEVA API v2 MODULAR
 
 // ========================================
 // Legacy Routes (v1.0 - Backward Compatibility)

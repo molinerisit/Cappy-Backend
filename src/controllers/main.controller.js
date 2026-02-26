@@ -183,7 +183,14 @@ exports.getPathWithNodes = async (req, res) => {
     const { pathId } = req.params;
     const userId = req.user?.id;
 
-    const path = await LearningPath.findById(pathId).populate('nodes');
+    const path = await LearningPath.findById(pathId)
+      .populate({
+        path: 'groups',
+        match: { isDeleted: false },
+        select: '_id title order pathId',
+        options: { sort: { order: 1 } }
+      })
+      .populate('nodes');
     if (!path) {
       return res.status(404).json({ message: 'Path no encontrado' });
     }
