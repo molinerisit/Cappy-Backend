@@ -2,16 +2,17 @@ const express = require('express');
 const router = express.Router();
 const mainController = require('../controllers/main.controller');
 const authMiddleware = require('../middleware/auth.middleware');
+const { publicCatalogLimiter } = require('../middleware/rateLimit.middleware');
 
 // ========================================
 // PUBLIC ROUTES
 // ========================================
 
 // Get all countries for Experiencia Culinaria
-router.get('/countries', mainController.getAllCountries);
+router.get('/countries', publicCatalogLimiter, mainController.getAllCountries);
 
 // Get country hub (recipes + culture)
-router.get('/countries/:countryId/hub', mainController.getCountryHub);
+router.get('/countries/:countryId/hub', publicCatalogLimiter, mainController.getCountryHub);
 
 // Get recipes by country
 router.get('/recipes/country/:countryId', mainController.getRecipesByCountry);
@@ -26,10 +27,10 @@ router.get('/culture/country/:countryId', mainController.getCultureByCountry);
 router.get('/culture/:cultureId', mainController.getCultureDetail);
 
 // Get all goal paths for Seguir Objetivos
-router.get('/goals', mainController.getGoalPaths);
+router.get('/goals', publicCatalogLimiter, mainController.getGoalPaths);
 
 // Get path with nodes (generic, public preview)
-router.get('/paths/:pathId', mainController.getPathWithNodes);
+router.get('/paths/:pathId', publicCatalogLimiter, mainController.getPathWithNodes);
 
 // Get global ranking
 router.get('/ranking', mainController.getGlobalRanking);

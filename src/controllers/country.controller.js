@@ -2,6 +2,7 @@ const Country = require("../models/Country.model");
 const Recipe = require("../models/Recipe.model");
 const Skill = require("../models/Skill.model");
 const UserProgress = require("../models/UserProgress.model");
+const { invalidateCatalogCaches } = require("../services/catalogCache.service");
 
 // ==============================
 // GET ALL COUNTRIES
@@ -250,6 +251,8 @@ exports.createCountry = async (req, res) => {
       lessons: []
     });
 
+    invalidateCatalogCaches();
+
     res.status(201).json(country);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -272,6 +275,8 @@ exports.updateCountry = async (req, res) => {
     if (!country) {
       return res.status(404).json({ message: "País no encontrado" });
     }
+
+    invalidateCatalogCaches();
 
     res.json(country);
   } catch (error) {
@@ -313,6 +318,8 @@ exports.toggleSection = async (req, res) => {
       return res.status(404).json({ message: "País no encontrado" });
     }
 
+    invalidateCatalogCaches();
+
     res.json({
       message: `Sección ${section} actualizada`,
       country
@@ -337,6 +344,8 @@ exports.deleteCountry = async (req, res) => {
     if (!country) {
       return res.status(404).json({ message: "País no encontrado" });
     }
+
+    invalidateCatalogCaches();
 
     res.json({ message: "País y su contenido eliminado" });
   } catch (error) {

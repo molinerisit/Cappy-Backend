@@ -6,6 +6,7 @@ const Country = require("../models/Country.model");
 const Culture = require("../models/Culture.model");
 const Recipe = require("../models/Recipe.model");
 const adminContentService = require("../services/adminContent.service");
+const { invalidateCatalogCaches } = require("../services/catalogCache.service");
 
 const sendError = (res, error) => {
   const status = error.statusCode || 500;
@@ -326,6 +327,7 @@ exports.createLearningPath = async (req, res) => {
     });
 
     const savedPath = await newPath.save();
+    invalidateCatalogCaches();
     res.status(201).json(savedPath);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -346,6 +348,8 @@ exports.updateLearningPath = async (req, res) => {
     if (!path) {
       return res.status(404).json({ message: "Path no encontrado" });
     }
+
+    invalidateCatalogCaches();
 
     res.json(path);
   } catch (error) {
@@ -368,6 +372,8 @@ exports.deleteLearningPath = async (req, res) => {
 
     // Delete associated nodes
     await LearningNode.deleteMany({ pathId });
+
+    invalidateCatalogCaches();
 
     res.json({ message: "Path eliminado", deletedPath: path });
   } catch (error) {
