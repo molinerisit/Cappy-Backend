@@ -3,6 +3,21 @@ const LearningPath = require('../models/LearningPath.model');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
+const ALLOWED_AVATAR_ICONS = new Set([
+  '👨‍🍳',
+  '👩‍🍳',
+  '🧑‍🍳',
+  '🍳',
+  '🥘',
+  '🍜',
+  '🍕',
+  '🥗',
+  '🌮',
+  '🧁',
+  '🍣',
+  '🥐',
+]);
+
 exports.register = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -76,6 +91,8 @@ exports.getProfile = async (req, res) => {
       _id, 
       email, 
       role, 
+      username,
+      avatarIcon,
       totalXP, 
       level, 
       streak, 
@@ -100,6 +117,8 @@ exports.getProfile = async (req, res) => {
       id: _id,
       email,
       role,
+      username,
+      avatarIcon,
       totalXP,
       level,
       streak,
@@ -114,6 +133,65 @@ exports.getProfile = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ message: 'No autorizado' });
+    }
+
+    const updates = {};
+
+    if (req.body.username !== undefined) {
+      const username = String(req.body.username || '').trim();
+      if (username.length < 3 || username.length > 24) {
+        return res.status(400).json({
+          message: 'El nickname debe tener entre 3 y 24 caracteres',
+        });
+      }
+      updates.username = username;
+    }
+
+    if (req.body.avatarIcon !== undefined) {
+      const avatarIcon = String(req.body.avatarIcon || '').trim();
+      if (!ALLOWED_AVATAR_ICONS.has(avatarIcon)) {
+        return res.status(400).json({
+          message: 'Ícono de avatar no permitido',
+        });
+      }
+      updates.avatarIcon = avatarIcon;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        message: 'No hay campos válidos para actualizar',
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(userId, updates, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    return res.json({
+      id: user._id,
+      username: user.username,
+      avatarIcon: user.avatarIcon,
+      email: user.email,
+      totalXP: user.totalXP,
+      level: user.level,
+      streak: user.streak,
+      completedLessonsCount: user.completedLessonsCount,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
 

@@ -10,7 +10,7 @@ exports.getGlobalLeaderboard = async (req, res) => {
     
     // Get top users by totalXP
     const topUsers = await User
-      .find({ role: 'user' }) // Exclude admins from leaderboard
+      .find({})
       .sort({ totalXP: -1 }) // Sort descending by XP
       .limit(limit)
       .select('username email totalXP level streak completedLessonsCount')
@@ -48,7 +48,7 @@ exports.getGlobalLeaderboard = async (req, res) => {
  */
 exports.getMyRank = async (req, res) => {
   try {
-    const userId = req.userId; // From auth middleware
+    const userId = req.user?._id || req.userId;
 
     const user = await User.findById(userId).select('totalXP').lean();
     
@@ -62,13 +62,12 @@ exports.getMyRank = async (req, res) => {
     // Count how many users have more XP than current user
     const usersAhead = await User.countDocuments({
       totalXP: { $gt: user.totalXP },
-      role: 'user',
     });
 
     const myRank = usersAhead + 1;
 
     // Get total users for percentage calculation
-    const totalUsers = await User.countDocuments({ role: 'user' });
+    const totalUsers = await User.countDocuments({});
 
     res.status(200).json({
       success: true,
@@ -95,7 +94,7 @@ exports.getMyRank = async (req, res) => {
  */
 exports.getLeaderboardAroundMe = async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.user?._id || req.userId;
 
     const user = await User.findById(userId).select('totalXP username').lean();
     
@@ -110,7 +109,6 @@ exports.getLeaderboardAroundMe = async (req, res) => {
     const usersAbove = await User
       .find({ 
         totalXP: { $gt: user.totalXP },
-        role: 'user',
       })
       .sort({ totalXP: -1 })
       .limit(10)
@@ -121,7 +119,6 @@ exports.getLeaderboardAroundMe = async (req, res) => {
     const usersBelow = await User
       .find({ 
         totalXP: { $lt: user.totalXP },
-        role: 'user',
       })
       .sort({ totalXP: -1 })
       .limit(10)
@@ -131,7 +128,6 @@ exports.getLeaderboardAroundMe = async (req, res) => {
     // Calculate rank
     const usersAheadCount = await User.countDocuments({
       totalXP: { $gt: user.totalXP },
-      role: 'user',
     });
 
     const myRank = usersAheadCount + 1;
