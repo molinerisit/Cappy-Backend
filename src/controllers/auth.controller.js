@@ -1,5 +1,6 @@
 const User = require('../models/user.model');
 const LearningPath = require('../models/LearningPath.model');
+const UserProgress = require('../models/UserProgress.model');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
@@ -133,6 +134,101 @@ exports.getProfile = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getProfileAnalytics = async (req, res) => {
+  try {
+    const {
+      totalXP = 0,
+      level = 1,
+      streak = 0,
+      completedLessonsCount = 0,
+      lastLessonDate = null,
+    } = req.user;
+
+    const xpInLevel = totalXP % 100;
+    const xpToNextLevel = Math.max(0, 100 - xpInLevel);
+    const weeklyGoalDays = 7;
+
+    const todayUtc = new Date();
+    todayUtc.setUTCHours(0, 0, 0, 0);
+    const weekStartUtc = new Date(todayUtc);
+    weekStartUtc.setUTCDate(todayUtc.getUTCDate() - (weeklyGoalDays - 1));
+
+    const activityAgg = await UserProgress.aggregate([
+      { $match: { userId: req.user._id } },
+      { $unwind: '$completedNodes' },
+      {
+        $match: {
+          'completedNodes.completedAt': { $gte: weekStartUtc },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: '%Y-%m-%d',
+              date: '$completedNodes.completedAt',
+              timezone: 'UTC',
+            },
+          },
+          completions: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const activityByDate = new Map(
+      activityAgg.map((item) => [item._id, item.completions])
+    );
+
+    const dayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+    const activityLast7Days = [];
+    let activeDays = 0;
+
+    for (let i = 0; i < weeklyGoalDays; i += 1) {
+      const day = new Date(weekStartUtc);
+      day.setUTCDate(weekStartUtc.getUTCDate() + i);
+
+      const isoDate = day.toISOString().slice(0, 10);
+      const completions = activityByDate.get(isoDate) || 0;
+      const active = completions > 0;
+      if (active) activeDays += 1;
+
+      activityLast7Days.push({
+        date: isoDate,
+        label: dayLabels[(day.getUTCDay() + 6) % 7],
+        completions,
+        active,
+      });
+    }
+
+    const weeklyConsistency = activeDays / weeklyGoalDays;
+    const avgXpPerLesson = completedLessonsCount > 0
+      ? Math.round(totalXP / completedLessonsCount)
+      : 0;
+    const masteryScore = Math.max(
+      0,
+      Math.min(100, (level * 8) + (streak * 3))
+    );
+
+    return res.json({
+      xpInLevel,
+      xpToNextLevel,
+      weeklyGoalDays,
+      weeklyGoalProgressDays: activeDays,
+      weeklyConsistency,
+      activityLast7Days,
+      avgXpPerLesson,
+      masteryScore,
+      streak,
+      completedLessonsCount,
+      generatedAt: new Date().toISOString(),
+      lastLessonDate,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
 

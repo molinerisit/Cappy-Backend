@@ -1,27 +1,12 @@
 const UserProgress = require("../models/UserProgress.model");
 const Lesson = require("../models/lesson.model");
-
-const DAY_MS = 1000 * 60 * 60 * 24;
+const {
+  calculateNextStreak,
+  applyUserDailyStreak,
+  applyProgressDailyStreak,
+} = require('./streak.service');
 
 const calculateLevel = (xp) => Math.floor(xp / 100) + 1;
-
-const updateStreak = (currentStreak, lastCompletedAt, now) => {
-  if (!lastCompletedAt) {
-    return 1;
-  }
-
-  const diffDays = Math.floor((now - new Date(lastCompletedAt)) / DAY_MS);
-
-  if (diffDays === 1) {
-    return currentStreak + 1;
-  }
-
-  if (diffDays > 1) {
-    return 1;
-  }
-
-  return currentStreak;
-};
 
 const getFirstLessonForPath = async (pathId) => {
   return Lesson.findOne({ pathId }).sort("order");
@@ -93,8 +78,7 @@ const completePathLesson = async (userId, lessonId) => {
   
   // Always award XP even on repeat completions
   progress.xp += xpGained;
-  progress.streak = updateStreak(progress.streak, progress.lastCompletedAt, now);
-  progress.lastCompletedAt = now;
+  applyProgressDailyStreak(progress, now);
   progress.level = calculateLevel(progress.xp);
 
   // Unlock next lesson only on first completion
@@ -121,29 +105,16 @@ const completePathLesson = async (userId, lessonId) => {
 
 exports.updateProgress = (user, xpGained) => {
   const today = new Date();
-  const lastDate = user.lastLessonDate;
 
   user.xp += xpGained;
   user.completedLessonsCount += 1;
 
-  if (!lastDate) {
-    user.streak = 1;
-  } else {
-    const diffDays = Math.floor(
-      (today - new Date(lastDate)) / DAY_MS
-    );
-
-    if (diffDays === 1) {
-      user.streak += 1;
-    } else if (diffDays > 1) {
-      user.streak = 1;
-    }
-  }
-
-  user.lastLessonDate = today;
+  applyUserDailyStreak(user, today);
 
   return user;
 };
+
+exports.updateStreak = calculateNextStreak;
 
 exports.getOrCreatePathProgress = getOrCreatePathProgress;
 exports.completePathLesson = completePathLesson;

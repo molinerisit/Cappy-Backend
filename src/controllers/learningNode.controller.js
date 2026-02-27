@@ -2,6 +2,10 @@ const LearningNode = require("../models/LearningNode.model");
 const LearningPath = require("../models/LearningPath.model");
 const Country = require("../models/Country.model");
 const UserProgress = require("../models/UserProgress.model");
+const {
+  applyProgressDailyStreak,
+  applyUserDailyStreak,
+} = require('../services/streak.service');
 
 // ==============================
 // ==============================
@@ -205,19 +209,23 @@ exports.completeNode = async (req, res) => {
       n.nodeId.toString() === nodeId
     );
 
+    const completionNow = new Date();
+
     if (!alreadyCompleted) {
       userProgress.completedNodes.push({
         nodeId,
-        completedAt: new Date(),
+        completedAt: completionNow,
         score: score || 100,
         attempts: 1
       });
     } else {
       // Allow repeat completions - increment attempts and update score
       alreadyCompleted.attempts += 1;
-      alreadyCompleted.completedAt = new Date();
+      alreadyCompleted.completedAt = completionNow;
       alreadyCompleted.score = score || 100;
     }
+
+    applyProgressDailyStreak(userProgress, completionNow);
 
     // Award XP every time (even on repeat completions)
     userProgress.xp += node.xpReward;
@@ -245,6 +253,8 @@ exports.completeNode = async (req, res) => {
       if (!alreadyCompleted) {
         user.completedLessonsCount = (user.completedLessonsCount || 0) + 1;
       }
+
+      applyUserDailyStreak(user, completionNow);
       
       await user.save();
     }
@@ -262,6 +272,7 @@ exports.completeNode = async (req, res) => {
       totalXp: userProgress.xp,
       level: userProgress.level,
       totalXP: user?.totalXP || 0,
+      streak: user?.streak || userProgress.streak || 0,
       isRepeat: !!alreadyCompleted,
       attempts: alreadyCompleted?.attempts || 1,
       unlockedNodes: unlockedNodes.map(n => ({

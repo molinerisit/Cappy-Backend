@@ -1,6 +1,11 @@
 const Recipe = require("../models/Recipe.model");
 const Country = require("../models/Country.model");
 const UserProgress = require("../models/UserProgress.model");
+const User = require('../models/user.model');
+const {
+  applyProgressDailyStreak,
+  applyUserDailyStreak,
+} = require('../services/streak.service');
 
 // ==============================
 // GET RECIPES BY COUNTRY
@@ -133,19 +138,22 @@ exports.completeRecipe = async (req, res) => {
       r.recipeId.toString() === recipeId
     );
 
+    const completionNow = new Date();
+
     if (!alreadyCompleted) {
       userProgress.completedRecipes.push({
         recipeId,
-        completedAt: new Date(),
+        completedAt: completionNow,
         attempts: 1
       });
 
       // Award XP
       userProgress.xp += recipe.xpReward;
-      userProgress.lastCompletedAt = new Date();
     } else {
       alreadyCompleted.attempts += 1;
     }
+
+    applyProgressDailyStreak(userProgress, completionNow);
 
     // Check level up (every 100 XP = 1 level)
     const newLevel = Math.floor(userProgress.xp / 100) + 1;
@@ -155,11 +163,21 @@ exports.completeRecipe = async (req, res) => {
 
     await userProgress.save();
 
+    const user = await User.findById(userId);
+    if (user) {
+      user.totalXP = (user.totalXP || 0) + recipe.xpReward;
+      user.level = Math.floor(user.totalXP / 100) + 1;
+      applyUserDailyStreak(user, completionNow);
+      await user.save();
+    }
+
     res.json({
       message: "Receta completada",
       xpEarned: recipe.xpReward,
       totalXp: userProgress.xp,
-      level: userProgress.level
+      level: userProgress.level,
+      streak: user?.streak || userProgress.streak || 0,
+      totalXP: user?.totalXP || 0,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
