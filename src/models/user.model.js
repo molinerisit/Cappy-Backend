@@ -5,6 +5,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     username: { type: String, default: function() { return this.email.split('@')[0]; } }, // Display name for leaderboard
+    avatarIcon: { type: String, default: '👨‍🍳' },
     skillLevel: { type: Number, default: 1 },
     dietType: { type: String, default: "none" },
     timePreference: { type: Number, default: 20 },

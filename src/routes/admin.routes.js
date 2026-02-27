@@ -6,6 +6,13 @@ const isAdmin = require("../middleware/isAdmin");
 
 const adminController = require("../controllers/admin.controller");
 
+const cultureDisabled = (_req, res) => {
+  return res.status(410).json({
+    message: "El módulo de Cultura está deshabilitado",
+    code: "CULTURE_DISABLED"
+  });
+};
+
 router.use(auth, isAdmin);
 
 // ==============================
@@ -59,10 +66,10 @@ router.post("/learning-nodes/:nodeId/required", adminController.setRequiredNodes
 // Reorder nodes in a path
 router.post("/learning-paths/:pathId/reorder-nodes", adminController.reorderNodes);
 
-// Import module (recipe, culture, node) into a learning node
+// Import module (recipe, node) into a learning node
 router.post("/learning-nodes/:nodeId/import-module", adminController.importModule);
 
-// Remove module (recipe, culture, node) from a learning node
+// Remove module (recipe, node) from a learning node
 router.post("/learning-nodes/:nodeId/remove-module", adminController.removeModule);
 
 // ==============================
@@ -104,32 +111,32 @@ router.delete(
 );
 
 // ==============================
-// CULTURE ROUTES
+// CULTURE ROUTES (DISABLED)
 // ==============================
 
-// Get all culture content
-router.get("/culture", adminController.getAllCulture);
+// Get all culture content (disabled)
+router.get("/culture", cultureDisabled);
 
-// Get culture by country
-router.get("/culture/country/:countryId", adminController.getCultureByCountry);
+// Get culture by country (disabled)
+router.get("/culture/country/:countryId", cultureDisabled);
 
-// Create culture content
-router.post("/culture", adminController.createCulture);
+// Create culture content (disabled)
+router.post("/culture", cultureDisabled);
 
-// Update culture content
-router.put("/culture/:cultureId", adminController.updateCulture);
+// Update culture content (disabled)
+router.put("/culture/:cultureId", cultureDisabled);
 
-// Delete culture content
-router.delete("/culture/:cultureId", adminController.deleteCulture);
+// Delete culture content (disabled)
+router.delete("/culture/:cultureId", cultureDisabled);
 
-// Add step to culture
-router.post("/culture/:cultureId/steps", adminController.addCultureStep);
+// Add step to culture (disabled)
+router.post("/culture/:cultureId/steps", cultureDisabled);
 
-// Update culture step
-router.put("/culture/:cultureId/steps/:stepId", adminController.updateCultureStep);
+// Update culture step (disabled)
+router.put("/culture/:cultureId/steps/:stepId", cultureDisabled);
 
-// Delete culture step
-router.delete("/culture/:cultureId/steps/:stepId", adminController.deleteCultureStep);
+// Delete culture step (disabled)
+router.delete("/culture/:cultureId/steps/:stepId", cultureDisabled);
 
 // ==============================
 // RECIPES BY COUNTRY (for PathContentScreen)
@@ -145,14 +152,14 @@ router.get("/recipes/:recipeId", adminController.getRecipeDetails);
 router.get("/recipes/country/:countryId", adminController.listRecipesByCountry);
 
 // ==============================
-// CULTURE NODES BY COUNTRY
+// CULTURE NODES BY COUNTRY (DISABLED)
 // ==============================
 
-// List culture nodes by country
-router.get("/countries/:countryId/culture-nodes", adminController.listCultureNodesByCountry);
+// List culture nodes by country (disabled)
+router.get("/countries/:countryId/culture-nodes", cultureDisabled);
 
-// List culture by country (consistent with client API)
-router.get("/culture/country/:countryId", adminController.getCultureByCountry);
+// List culture by country (disabled)
+router.get("/culture/country/:countryId", cultureDisabled);
 
 // ==============================
 // COUNTRIES ROUTES (ADMIN)
@@ -161,6 +168,12 @@ const countryController = require("../controllers/country.controller");
 
 // Get all countries (admin view)
 router.get("/countries", countryController.getAllCountries);
+
+// Get countries paginated with filters (admin view)
+router.get("/countries/paginated", countryController.getCountriesPaginated);
+
+// Get unlock group options for country rules
+router.get("/countries/unlock-groups", countryController.getUnlockGroupOptions);
 
 // Create country
 router.post("/countries", countryController.createCountry);

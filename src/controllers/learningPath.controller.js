@@ -4,7 +4,6 @@ const NodeGroup = require("../models/NodeGroup.model");
 const Country = require("../models/Country.model");
 const UserProgress = require("../models/UserProgress.model");
 const Recipe = require("../models/Recipe.model");
-const Culture = require("../models/Culture.model");
 const nodeProgressService = require("../services/nodeProgress.service");
 const { invalidateCatalogCaches } = require("../services/catalogCache.service");
 
@@ -42,7 +41,7 @@ exports.getAllPaths = async (req, res) => {
 };
 
 // ==============================
-// GET COUNTRY HUB (Recipes + Culture)
+// GET COUNTRY HUB (Recipes only)
 // ==============================
 exports.getCountryHub = async (req, res) => {
   try {
@@ -53,15 +52,10 @@ exports.getCountryHub = async (req, res) => {
       return res.status(404).json({ message: "País no encontrado" });
     }
 
-    // Get both recipe and culture paths for this country
+    // Get recipe path for this country
     const recipePath = await LearningPath.findOne({
       countryId,
       type: 'country_recipe'
-    }).populate('nodes');
-
-    const culturePath = await LearningPath.findOne({
-      countryId,
-      type: 'country_culture'
     }).populate('nodes');
 
     res.json({
@@ -73,7 +67,7 @@ exports.getCountryHub = async (req, res) => {
         description: country.description
       },
       recipes: recipePath || { nodes: [] },
-      culture: culturePath || { nodes: [] }
+      culture: null
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

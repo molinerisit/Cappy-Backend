@@ -7,7 +7,7 @@ const authMiddleware = require("../middleware/auth.middleware");
 // Get all paths (culinary + goals)
 router.get("/", learningPathController.getAllPaths);
 
-// Get country hub (recipes + culture for a country)
+// Get country hub (recipes for a country)
 router.get("/country/:countryId/hub", learningPathController.getCountryHub);
 
 // Get single path with nodes

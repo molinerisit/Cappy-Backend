@@ -2,6 +2,8 @@ const Country = require("../models/Country.model");
 const Recipe = require("../models/Recipe.model");
 const Skill = require("../models/Skill.model");
 const UserProgress = require("../models/UserProgress.model");
+const NodeGroup = require("../models/NodeGroup.model");
+const LearningPath = require("../models/LearningPath.model");
 const { invalidateCatalogCaches } = require("../services/catalogCache.service");
 
 // ==============================
@@ -10,9 +12,140 @@ const { invalidateCatalogCaches } = require("../services/catalogCache.service");
 exports.getAllCountries = async (req, res) => {
   try {
     const countries = await Country.find({ isActive: true })
-      .select('name code icon flagUrl order hasRecipes hasCookingSchool hasCulture isPremium');
+      .select('name code icon description flagUrl order isActive hasRecipes hasCookingSchool hasCulture isPremium presentationHeadline presentationSummary heroImageUrl iconicDishes');
 
     res.json(countries);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ==============================
+// GET COUNTRIES PAGINATED (Admin)
+// ==============================
+exports.getCountriesPaginated = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const rawLimit = parseInt(req.query.limit, 10) || 20;
+    const limit = Math.min(Math.max(rawLimit, 1), 100);
+    const skip = (page - 1) * limit;
+
+    const filter = {};
+    const status = (req.query.status || 'all').toString().toLowerCase();
+    const premium = (req.query.premium || 'all').toString().toLowerCase();
+    const search = (req.query.search || '').toString().trim();
+    const requestedSortBy = (req.query.sortBy || 'order').toString();
+    const requestedSortDir = (req.query.sortDir || 'asc').toString().toLowerCase();
+
+    const allowedSortFields = new Set([
+      'order',
+      'name',
+      'code',
+      'isPremium',
+      'isActive',
+      'createdAt',
+      'updatedAt',
+    ]);
+
+    const sortBy = allowedSortFields.has(requestedSortBy)
+      ? requestedSortBy
+      : 'order';
+    const sortDirection = requestedSortDir === 'desc' ? -1 : 1;
+
+    const sort = { [sortBy]: sortDirection };
+    if (sortBy !== 'name') {
+      sort.name = 1;
+    }
+
+    if (status === 'active') {
+      filter.isActive = true;
+    } else if (status === 'inactive') {
+      filter.isActive = false;
+    }
+
+    if (premium === 'premium') {
+      filter.isPremium = true;
+    } else if (premium === 'free') {
+      filter.isPremium = false;
+    }
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { code: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const [total, countries] = await Promise.all([
+      Country.countDocuments(filter),
+      Country.find(filter)
+        .select('name code icon description flagUrl order isActive hasRecipes hasCookingSchool hasCulture isPremium presentationHeadline presentationSummary heroImageUrl iconicDishes unlockLevel requiredGroupIds unlockRequiresAnyGroup')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    res.json({
+      data: countries,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(Math.ceil(total / limit), 1),
+        hasMore: skip + countries.length < total,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ==============================
+// GET UNLOCK GROUP OPTIONS (Admin)
+// ==============================
+exports.getUnlockGroupOptions = async (req, res) => {
+  try {
+    const { countryId } = req.query;
+    const pathType = (req.query.pathType || 'country_recipe').toString();
+
+    const groupFilter = { isDeleted: { $ne: true } };
+
+    if (countryId) {
+      const pathFilter = {
+        countryId,
+        isActive: true,
+      };
+
+      if (pathType && pathType !== 'all') {
+        pathFilter.type = pathType;
+      }
+
+      const paths = await LearningPath.find(pathFilter).select('_id').lean();
+      const pathIds = paths.map((path) => path._id);
+
+      if (!pathIds.length) {
+        return res.json([]);
+      }
+
+      groupFilter.pathId = { $in: pathIds };
+    }
+
+    const groups = await NodeGroup.find(groupFilter)
+      .populate('pathId', 'title type')
+      .sort({ updatedAt: -1, title: 1 })
+      .lean();
+
+    const options = groups.map((group) => ({
+      id: group._id?.toString(),
+      title: group.title || 'Grupo',
+      order: group.order || 0,
+      pathId: group.pathId?._id?.toString() || null,
+      pathTitle: group.pathId?.title || 'Sin camino',
+      pathType: group.pathId?.type || 'unknown',
+    }));
+
+    res.json(options);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -213,7 +346,15 @@ exports.createCountry = async (req, res) => {
       name,
       code,
       icon,
+      description,
       flagUrl,
+      presentationHeadline,
+      presentationSummary,
+      heroImageUrl,
+      iconicDishes,
+      unlockLevel,
+      requiredGroupIds,
+      unlockRequiresAnyGroup,
       order,
       hasRecipes,
       hasCookingSchool,
@@ -239,11 +380,28 @@ exports.createCountry = async (req, res) => {
       name,
       code,
       icon: icon || '🌍',
+      description,
       flagUrl,
+      presentationHeadline,
+      presentationSummary,
+      heroImageUrl,
+      iconicDishes: Array.isArray(iconicDishes)
+        ? iconicDishes
+            .map((dish) => String(dish || '').trim())
+            .filter(Boolean)
+            .slice(0, 6)
+        : [],
+      unlockLevel: Number.isFinite(Number(unlockLevel))
+        ? Math.max(1, Math.floor(Number(unlockLevel)))
+        : 1,
+      requiredGroupIds: Array.isArray(requiredGroupIds)
+        ? requiredGroupIds.map((id) => id?.toString()).filter(Boolean)
+        : [],
+      unlockRequiresAnyGroup: unlockRequiresAnyGroup === true,
       order: order || 0,
       hasRecipes: hasRecipes !== undefined ? hasRecipes : true,
-      hasCookingSchool: hasCookingSchool !== undefined ? hasCookingSchool : true,
-      hasCulture: hasCulture !== undefined ? hasCulture : true,
+      hasCookingSchool: hasCookingSchool !== undefined ? hasCookingSchool : false,
+      hasCulture: hasCulture !== undefined ? hasCulture : false,
       isActive: true,
       isPremium: isPremium || false,
       recipes: [],
@@ -265,7 +423,32 @@ exports.createCountry = async (req, res) => {
 exports.updateCountry = async (req, res) => {
   try {
     const { countryId } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body };
+
+    if (updates.iconicDishes !== undefined) {
+      updates.iconicDishes = Array.isArray(updates.iconicDishes)
+        ? updates.iconicDishes
+            .map((dish) => String(dish || '').trim())
+            .filter(Boolean)
+            .slice(0, 6)
+        : [];
+    }
+
+    if (updates.unlockLevel !== undefined) {
+      updates.unlockLevel = Number.isFinite(Number(updates.unlockLevel))
+        ? Math.max(1, Math.floor(Number(updates.unlockLevel)))
+        : 1;
+    }
+
+    if (updates.requiredGroupIds !== undefined) {
+      updates.requiredGroupIds = Array.isArray(updates.requiredGroupIds)
+        ? updates.requiredGroupIds.map((id) => id?.toString()).filter(Boolean)
+        : [];
+    }
+
+    if (updates.unlockRequiresAnyGroup !== undefined) {
+      updates.unlockRequiresAnyGroup = updates.unlockRequiresAnyGroup === true;
+    }
 
     const country = await Country.findByIdAndUpdate(countryId, updates, {
       new: true,

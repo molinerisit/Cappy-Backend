@@ -4,7 +4,6 @@ const LearningNode = require('../models/LearningNode.model');
 const UserProgress = require('../models/UserProgress.model');
 const User = require('../models/user.model');
 const Recipe = require('../models/Recipe.model');
-const Culture = require('../models/Culture.model');
 const {
   getOrCreateNodeProgress,
   getNextNodeForPath,
@@ -16,19 +15,107 @@ const {
   setCachedCatalogResponse,
 } = require('../services/catalogCache.service');
 
+const toIdString = (value) => value?.toString();
+
+const sanitizeUnlockLevel = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.max(1, Math.floor(parsed));
+};
+
+const buildUnlockContext = async (userId, userLevelHint) => {
+  const userLevel = sanitizeUnlockLevel(userLevelHint);
+  if (!userId) {
+    return {
+      userLevel,
+      completedGroupIds: new Set(),
+    };
+  }
+
+  const progressList = await UserProgress.find({ userId })
+    .select('completedLessons')
+    .lean();
+
+  const completedLessonIds = Array.from(
+    new Set(
+      progressList
+        .flatMap((entry) => entry.completedLessons || [])
+        .map((id) => toIdString(id))
+        .filter(Boolean)
+    )
+  );
+
+  if (!completedLessonIds.length) {
+    return {
+      userLevel,
+      completedGroupIds: new Set(),
+    };
+  }
+
+  const completedGroupIdsRaw = await LearningNode.distinct('groupId', {
+    _id: { $in: completedLessonIds },
+    groupId: { $ne: null },
+  });
+
+  return {
+    userLevel,
+    completedGroupIds: new Set(
+      completedGroupIdsRaw.map((groupId) => toIdString(groupId)).filter(Boolean)
+    ),
+  };
+};
+
+const computeCountryUnlock = (country, unlockContext) => {
+  const unlockLevel = sanitizeUnlockLevel(country.unlockLevel);
+  const requiredGroupIds = Array.isArray(country.requiredGroupIds)
+    ? country.requiredGroupIds.map((id) => toIdString(id)).filter(Boolean)
+    : [];
+  const requiresAnyGroup = country.unlockRequiresAnyGroup === true;
+
+  const levelMet = unlockContext.userLevel >= unlockLevel;
+
+  let groupsMet = true;
+  if (requiredGroupIds.length) {
+    groupsMet = requiresAnyGroup
+      ? requiredGroupIds.some((groupId) => unlockContext.completedGroupIds.has(groupId))
+      : requiredGroupIds.every((groupId) => unlockContext.completedGroupIds.has(groupId));
+  }
+
+  const isUnlocked = levelMet && groupsMet;
+  const missingGroupIds = requiredGroupIds.filter(
+    (groupId) => !unlockContext.completedGroupIds.has(groupId)
+  );
+
+  return {
+    isUnlocked,
+    unlockLevel,
+    requiredGroupIds,
+    unlockRequiresAnyGroup: requiresAnyGroup,
+    levelMet,
+    groupsMet,
+    missingGroupIds,
+    userLevel: unlockContext.userLevel,
+  };
+};
+
 // ========================================
 // GET ALL COUNTRIES (Experiencia Culinaria)
 // ========================================
 exports.getAllCountries = async (req, res) => {
   try {
+    const userId = req.user?.id;
+    const userLevelHint = req.user?.level;
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const rawLimit = parseInt(req.query.limit, 10) || 20;
     const limit = Math.min(Math.max(rawLimit, 1), 100);
     const skip = (page - 1) * limit;
     const cacheKey = getCatalogCacheKey('countries', page, limit);
+    const shouldUseCache = !userId;
 
-    const cachedResponse = getCachedCatalogResponse(cacheKey);
-    if (cachedResponse) {
+    const cachedResponse = shouldUseCache
+      ? getCachedCatalogResponse(cacheKey)
+      : null;
+    if (shouldUseCache && cachedResponse) {
       res.set('Cache-Control', 'public, max-age=60');
       return res.json(cachedResponse);
     }
@@ -38,15 +125,21 @@ exports.getAllCountries = async (req, res) => {
     const [total, countries] = await Promise.all([
       Country.countDocuments(filter),
       Country.find(filter)
-        .select('name code icon description order isPremium')
+        .select('name code icon description order isActive isPremium presentationHeadline presentationSummary heroImageUrl iconicDishes unlockLevel requiredGroupIds unlockRequiresAnyGroup')
         .sort({ order: 1 })
         .skip(skip)
         .limit(limit)
         .lean(),
     ]);
 
+    const unlockContext = await buildUnlockContext(userId, userLevelHint);
+    const countriesWithUnlock = countries.map((country) => ({
+      ...country,
+      unlock: computeCountryUnlock(country, unlockContext),
+    }));
+
     const response = {
-      data: countries,
+      data: countriesWithUnlock,
       pagination: {
         page,
         limit,
@@ -56,8 +149,10 @@ exports.getAllCountries = async (req, res) => {
       }
     };
 
-    setCachedCatalogResponse(cacheKey, response);
-    res.set('Cache-Control', 'public, max-age=60');
+    if (shouldUseCache) {
+      setCachedCatalogResponse(cacheKey, response);
+      res.set('Cache-Control', 'public, max-age=60');
+    }
     res.json(response);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -65,16 +160,28 @@ exports.getAllCountries = async (req, res) => {
 };
 
 // ========================================
-// GET COUNTRY HUB (Recipes + Culture tabs)
+// GET COUNTRY HUB (Recipes only)
 // ========================================
 exports.getCountryHub = async (req, res) => {
   try {
     const { countryId } = req.params;
     const userId = req.user?.id;
+    const userLevelHint = req.user?.level;
 
     const country = await Country.findById(countryId);
     if (!country) {
       return res.status(404).json({ message: 'País no encontrado' });
+    }
+
+    const unlockContext = await buildUnlockContext(userId, userLevelHint);
+    const unlock = computeCountryUnlock(country, unlockContext);
+
+    if (!unlock.isUnlocked) {
+      return res.status(403).json({
+        message: 'País bloqueado por progresión',
+        code: 'COUNTRY_LOCKED',
+        unlock,
+      });
     }
 
     // Get or create recipe path for this country
@@ -105,49 +212,14 @@ exports.getCountryHub = async (req, res) => {
       console.log(`✓ Auto-created recipe path for ${country.name}`);
     }
 
-    // Get or create culture path for this country
-    let culturePath = await LearningPath.findOne({
-      countryId,
-      type: 'country_culture',
-      isActive: true
-    }).populate('nodes');
-
-    // Auto-create culture path if it doesn't exist
-    if (!culturePath) {
-      culturePath = await LearningPath.create({
-        type: 'country_culture',
-        countryId,
-        title: `Cultura de ${country.name}`,
-        description: `Descubre la historia y tradiciones culinarias de ${country.name}`,
-        icon: '📚',
-        order: 2,
-        nodes: [],
-        metadata: {
-          totalSteps: 0,
-          estimatedDuration: 0,
-          difficulty: 'easy'
-        },
-        isActive: true,
-        isPremium: country.isPremium || false
-      });
-      console.log(`✓ Auto-created culture path for ${country.name}`);
-    }
-
-    // Get user progress for both paths (if authenticated)
+    // Get user progress for recipe path (if authenticated)
     let recipeProgress = null;
-    let cultureProgress = null;
 
     if (userId) {
       if (recipePath) {
         recipeProgress = await getOrCreateNodeProgress(
           userId,
           recipePath._id
-        );
-      }
-      if (culturePath) {
-        cultureProgress = await getOrCreateNodeProgress(
-          userId,
-          culturePath._id
         );
       }
     }
@@ -157,8 +229,14 @@ exports.getCountryHub = async (req, res) => {
       country: {
         id: country._id,
         name: country.name,
+        code: country.code,
         icon: country.icon,
         description: country.description,
+        presentationHeadline: country.presentationHeadline,
+        presentationSummary: country.presentationSummary,
+        heroImageUrl: country.heroImageUrl,
+        iconicDishes: country.iconicDishes || [],
+        unlock,
         isPremium: country.isPremium
       },
       recipes: null,
@@ -213,54 +291,6 @@ exports.getCountryHub = async (req, res) => {
       };
     }
 
-    // Process culture path
-    if (culturePath) {
-      const unlockedIds = cultureProgress?.unlockedLessons || [];
-      const completedIds = cultureProgress?.completedLessons || [];
-
-      // If path has no nodes, load culture as virtual nodes
-      let nodesData = culturePath.nodes || [];
-      
-      if (nodesData.length === 0) {
-        const cultureItems = await Culture.find({ countryId }).sort({ createdAt: 1 });
-        nodesData = cultureItems.map((item, index) => ({
-          _id: item._id,
-          title: item.title,
-          description: item.description || `Explora ${item.title}`,
-          type: 'explanation',
-          difficulty: 1,
-          xpReward: item.xpReward || 30,
-          order: index + 1,
-          steps: item.steps || [],
-          // Mark first culture item as active, rest locked
-          status: index === 0 ? 'active' : 'locked'
-        }));
-      } else {
-        nodesData = nodesData.map(node => ({
-          ...node.toObject(),
-          status: completedIds.includes(node._id.toString())
-            ? 'completed'
-            : unlockedIds.includes(node._id.toString())
-            ? 'active'
-            : 'locked'
-        }));
-      }
-
-      response.culture = {
-        _id: culturePath._id,
-        type: culturePath.type,
-        countryId: culturePath.countryId,
-        title: culturePath.title,
-        description: culturePath.description,
-        icon: culturePath.icon || '📚',
-        order: culturePath.order,
-        isPremium: culturePath.isPremium,
-        isActive: culturePath.isActive,
-        createdAt: culturePath.createdAt,
-        nodes: nodesData
-      };
-    }
-
     res.json(response);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -285,20 +315,13 @@ exports.getRecipesByCountry = async (req, res) => {
 };
 
 // ========================================
-// GET CULTURE BY COUNTRY (Public)
+// GET CULTURE BY COUNTRY (Public - disabled)
 // ========================================
 exports.getCultureByCountry = async (req, res) => {
-  try {
-    const { countryId } = req.params;
-
-    const cultureItems = await Culture.find({ countryId })
-      .sort({ createdAt: 1 })
-      .select('title description xpReward imageUrl steps');
-
-    res.json(cultureItems);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+  return res.status(410).json({
+    message: 'El módulo de Cultura está deshabilitado',
+    code: 'CULTURE_DISABLED'
+  });
 };
 
 // ========================================
@@ -329,21 +352,13 @@ exports.getRecipeDetail = async (req, res) => {
 };
 
 // ========================================
-// GET SINGLE CULTURE (Public)
+// GET SINGLE CULTURE (Public - disabled)
 // ========================================
 exports.getCultureDetail = async (req, res) => {
-  try {
-    const { cultureId } = req.params;
-
-    const cultureItem = await Culture.findById(cultureId);
-    if (!cultureItem) {
-      return res.status(404).json({ message: 'Artículo cultural no encontrado' });
-    }
-
-    res.json(cultureItem);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+  return res.status(410).json({
+    message: 'El módulo de Cultura está deshabilitado',
+    code: 'CULTURE_DISABLED'
+  });
 };
 
 // ========================================

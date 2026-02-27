@@ -2,17 +2,25 @@ const express = require('express');
 const router = express.Router();
 const mainController = require('../controllers/main.controller');
 const authMiddleware = require('../middleware/auth.middleware');
+const optionalAuth = require('../middleware/optionalAuth.middleware');
 const { publicCatalogLimiter } = require('../middleware/rateLimit.middleware');
+
+const cultureDisabled = (_req, res) => {
+	return res.status(410).json({
+		message: 'El módulo de Cultura está deshabilitado',
+		code: 'CULTURE_DISABLED'
+	});
+};
 
 // ========================================
 // PUBLIC ROUTES
 // ========================================
 
 // Get all countries for Experiencia Culinaria
-router.get('/countries', publicCatalogLimiter, mainController.getAllCountries);
+router.get('/countries', optionalAuth, publicCatalogLimiter, mainController.getAllCountries);
 
-// Get country hub (recipes + culture)
-router.get('/countries/:countryId/hub', publicCatalogLimiter, mainController.getCountryHub);
+// Get country hub (recipes only)
+router.get('/countries/:countryId/hub', optionalAuth, publicCatalogLimiter, mainController.getCountryHub);
 
 // Get recipes by country
 router.get('/recipes/country/:countryId', mainController.getRecipesByCountry);
@@ -21,10 +29,10 @@ router.get('/recipes/country/:countryId', mainController.getRecipesByCountry);
 router.get('/recipes/:recipeId', mainController.getRecipeDetail);
 
 // Get culture by country
-router.get('/culture/country/:countryId', mainController.getCultureByCountry);
+router.get('/culture/country/:countryId', cultureDisabled);
 
 // Get single culture
-router.get('/culture/:cultureId', mainController.getCultureDetail);
+router.get('/culture/:cultureId', cultureDisabled);
 
 // Get all goal paths for Seguir Objetivos
 router.get('/goals', publicCatalogLimiter, mainController.getGoalPaths);
