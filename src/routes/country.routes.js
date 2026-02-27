@@ -3,15 +3,16 @@ const router = express.Router();
 const countryController = require("../controllers/country.controller");
 const countriesController = require("../controllers/countries.controller");
 const authMiddleware = require("../middleware/auth.middleware");
+const optionalAuthMiddleware = require("../middleware/optionalAuth.middleware");
 
 // Gamification - countries visited through recipes (MUST BE BEFORE /:countryId routes)
 router.post("/mark-visited", authMiddleware, countriesController.markCountryVisited);
 router.get("/my-visited", authMiddleware, countriesController.getMyVisitedCountries);
 
 // Public routes
-router.get("/", countryController.getAllCountries);
-router.get("/:countryId/hub", countryController.getCountryHub);
-router.get("/:countryId/sections", countryController.getCountrySections);
+router.get("/", optionalAuthMiddleware, countryController.getAllCountries);
+router.get("/:countryId/hub", optionalAuthMiddleware, countryController.getCountryHub);
+router.get("/:countryId/sections", optionalAuthMiddleware, countryController.getCountrySections);
 
 // Protected routes (user progress)
 router.get("/:countryId/progress", authMiddleware, countryController.getUserCountryProgress);

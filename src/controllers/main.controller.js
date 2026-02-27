@@ -10,6 +10,10 @@ const {
   syncUnlockState,
 } = require('../services/nodeProgress.service');
 const {
+  applyProgressDailyStreak,
+  applyUserDailyStreak,
+} = require('../services/streak.service');
+const {
   getCatalogCacheKey,
   getCachedCatalogResponse,
   setCachedCatalogResponse,
@@ -23,18 +27,65 @@ const sanitizeUnlockLevel = (value) => {
   return Math.max(1, Math.floor(parsed));
 };
 
-const buildUnlockContext = async (userId, userLevelHint) => {
-  const userLevel = sanitizeUnlockLevel(userLevelHint);
+const getUserPremiumAccess = (user) => {
+  if (!user) return false;
+
+  const directFlags = [
+    user.isPremium,
+    user.hasPremium,
+    user.premium,
+    user.isPro,
+    user.hasPro,
+    user.pro,
+    user.premiumAccess,
+    user.hasPremiumAccess,
+  ];
+
+  if (directFlags.some((flag) => flag === true)) {
+    return true;
+  }
+
+  if (user.subscription && typeof user.subscription === 'object') {
+    if (user.subscription.isActive === true || user.subscription.active === true) {
+      return true;
+    }
+
+    const plan = (user.subscription.plan || user.subscription.tier || '').toString().toLowerCase();
+    if (plan.includes('premium') || plan.includes('pro')) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const buildUnlockContext = async (userId, userLevelHint, user = null) => {
+  const isAdminUser = user?.role === 'admin';
+  const hintedLevel = isAdminUser ? 1 : sanitizeUnlockLevel(userLevelHint);
+  const hasPremiumAccess = isAdminUser ? false : getUserPremiumAccess(user);
+
+  let resolvedUserLevel = hintedLevel;
+
   if (!userId) {
     return {
-      userLevel,
+      userLevel: resolvedUserLevel,
+      hasPremiumAccess,
       completedGroupIds: new Set(),
     };
   }
 
   const progressList = await UserProgress.find({ userId })
-    .select('completedLessons')
+    .select('completedLessons level')
     .lean();
+
+  const maxProgressLevel = progressList.reduce((acc, entry) => {
+    const value = sanitizeUnlockLevel(entry?.level);
+    return Math.max(acc, value);
+  }, 1);
+
+  resolvedUserLevel = isAdminUser
+    ? 1
+    : Math.max(hintedLevel, maxProgressLevel);
 
   const completedLessonIds = Array.from(
     new Set(
@@ -47,7 +98,8 @@ const buildUnlockContext = async (userId, userLevelHint) => {
 
   if (!completedLessonIds.length) {
     return {
-      userLevel,
+      userLevel: resolvedUserLevel,
+      hasPremiumAccess,
       completedGroupIds: new Set(),
     };
   }
@@ -58,7 +110,8 @@ const buildUnlockContext = async (userId, userLevelHint) => {
   });
 
   return {
-    userLevel,
+    userLevel: resolvedUserLevel,
+    hasPremiumAccess,
     completedGroupIds: new Set(
       completedGroupIdsRaw.map((groupId) => toIdString(groupId)).filter(Boolean)
     ),
@@ -81,7 +134,8 @@ const computeCountryUnlock = (country, unlockContext) => {
       : requiredGroupIds.every((groupId) => unlockContext.completedGroupIds.has(groupId));
   }
 
-  const isUnlocked = levelMet && groupsMet;
+  const premiumMet = country.isPremium ? unlockContext.hasPremiumAccess : true;
+  const isUnlocked = levelMet && groupsMet && premiumMet;
   const missingGroupIds = requiredGroupIds.filter(
     (groupId) => !unlockContext.completedGroupIds.has(groupId)
   );
@@ -93,6 +147,7 @@ const computeCountryUnlock = (country, unlockContext) => {
     unlockRequiresAnyGroup: requiresAnyGroup,
     levelMet,
     groupsMet,
+    premiumMet,
     missingGroupIds,
     userLevel: unlockContext.userLevel,
   };
@@ -132,7 +187,7 @@ exports.getAllCountries = async (req, res) => {
         .lean(),
     ]);
 
-    const unlockContext = await buildUnlockContext(userId, userLevelHint);
+    const unlockContext = await buildUnlockContext(userId, userLevelHint, req.user);
     const countriesWithUnlock = countries.map((country) => ({
       ...country,
       unlock: computeCountryUnlock(country, unlockContext),
@@ -173,7 +228,7 @@ exports.getCountryHub = async (req, res) => {
       return res.status(404).json({ message: 'País no encontrado' });
     }
 
-    const unlockContext = await buildUnlockContext(userId, userLevelHint);
+    const unlockContext = await buildUnlockContext(userId, userLevelHint, req.user);
     const unlock = computeCountryUnlock(country, unlockContext);
 
     if (!unlock.isUnlocked) {
@@ -559,20 +614,10 @@ exports.completeNode = async (req, res) => {
     if (!isAlreadyCompleted) {
       progress.completedLessons.push(node._id);
     }
-    progress.lastCompletedAt = new Date();
 
-    // 7. Update streak
+    // 7. Update streak (daily, idempotent same-day)
     const now = new Date();
-    const lastCompleted = progress.lastCompletedAt;
-    const hoursSinceLastCompleted = lastCompleted
-      ? (now - lastCompleted) / 1000 / 60 / 60
-      : 999;
-
-    if (hoursSinceLastCompleted < 48) {
-      progress.streak += 1;
-    } else {
-      progress.streak = 1;
-    }
+    applyProgressDailyStreak(progress, now);
 
     // 8. Synchronize unlock state using deterministic sequence
     progress = await syncUnlockState(progress, node.pathId);
@@ -583,6 +628,7 @@ exports.completeNode = async (req, res) => {
     const user = await User.findById(userId);
     user.totalXP = (user.totalXP || 0) + node.xpReward;
     user.level = Math.floor(user.totalXP / 100) + 1;
+    applyUserDailyStreak(user, now);
     await user.save();
 
     // 11. Return updated data
@@ -595,6 +641,7 @@ exports.completeNode = async (req, res) => {
       xpEarned: node.xpReward,
       totalXP: user.totalXP,
       level: user.level,
+      streak: user.streak,
       isRepeat: isAlreadyCompleted,
       nextNodeId: !isAlreadyCompleted && nextNode ? nextNode._id : null,
       progress: {

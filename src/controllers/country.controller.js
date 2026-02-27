@@ -3,18 +3,235 @@ const Recipe = require("../models/Recipe.model");
 const Skill = require("../models/Skill.model");
 const UserProgress = require("../models/UserProgress.model");
 const NodeGroup = require("../models/NodeGroup.model");
+const LearningNode = require("../models/LearningNode.model");
 const LearningPath = require("../models/LearningPath.model");
 const { invalidateCatalogCaches } = require("../services/catalogCache.service");
+
+const toIdString = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value.toString) {
+    const normalized = value.toString();
+    return normalized && normalized !== '[object Object]' ? normalized : null;
+  }
+  return null;
+};
+
+const getUserPremiumAccess = (user) => {
+  if (!user) return false;
+
+  const directFlags = [
+    user.isPremium,
+    user.hasPremium,
+    user.premium,
+    user.isPro,
+    user.hasPro,
+    user.pro,
+    user.premiumAccess,
+    user.hasPremiumAccess,
+  ];
+
+  if (directFlags.some((flag) => flag === true)) {
+    return true;
+  }
+
+  if (user.subscription && typeof user.subscription === 'object') {
+    if (user.subscription.isActive === true || user.subscription.active === true) {
+      return true;
+    }
+
+    const plan = (user.subscription.plan || user.subscription.tier || '').toString().toLowerCase();
+    if (plan.includes('premium') || plan.includes('pro')) {
+      return true;
+    }
+  }
+
+  return user.role === 'admin';
+};
+
+const getUserUnlockContext = async (user) => {
+  const userLevel = Math.max(1, Number(user?.level || 1));
+  const hasPremiumAccess = getUserPremiumAccess(user);
+
+  if (!user?._id) {
+    return {
+      userLevel,
+      hasPremiumAccess,
+      completedGroupIds: new Set(),
+    };
+  }
+
+  const progressDocs = await UserProgress.find({ userId: user._id })
+    .select('completedNodes.nodeId')
+    .lean();
+
+  const completedNodeIds = new Set();
+
+  for (const progress of progressDocs) {
+    const completedNodes = Array.isArray(progress?.completedNodes)
+      ? progress.completedNodes
+      : [];
+
+    for (const completedNode of completedNodes) {
+      const nodeId = toIdString(completedNode?.nodeId);
+      if (nodeId) {
+        completedNodeIds.add(nodeId);
+      }
+    }
+  }
+
+  if (!completedNodeIds.size) {
+    return {
+      userLevel,
+      hasPremiumAccess,
+      completedGroupIds: new Set(),
+    };
+  }
+
+  const completedNodes = await LearningNode.find({
+    _id: { $in: Array.from(completedNodeIds) },
+    isDeleted: { $ne: true },
+  })
+    .select('groupId')
+    .lean();
+
+  const completedGroupIds = new Set(
+    completedNodes
+      .map((node) => toIdString(node?.groupId))
+      .filter(Boolean)
+  );
+
+  return {
+    userLevel,
+    hasPremiumAccess,
+    completedGroupIds,
+  };
+};
+
+const buildCountryUnlock = (country, unlockContext) => {
+  const unlockLevel = Math.max(1, Number(country?.unlockLevel || 1));
+  const levelMet = unlockContext.userLevel >= unlockLevel;
+
+  const requiredGroupIds = Array.isArray(country?.requiredGroupIds)
+    ? country.requiredGroupIds.map((groupId) => toIdString(groupId)).filter(Boolean)
+    : [];
+
+  const missingGroupIds = requiredGroupIds.filter(
+    (groupId) => !unlockContext.completedGroupIds.has(groupId)
+  );
+
+  const groupsMet = requiredGroupIds.length === 0
+    ? true
+    : country?.unlockRequiresAnyGroup === true
+    ? missingGroupIds.length < requiredGroupIds.length
+    : missingGroupIds.length === 0;
+
+  const premiumMet = country?.isPremium ? unlockContext.hasPremiumAccess : true;
+  const isUnlocked = levelMet && groupsMet && premiumMet;
+
+  return {
+    isUnlocked,
+    levelMet,
+    groupsMet,
+    premiumMet,
+    unlockLevel,
+    requiredGroupIds,
+    missingGroupIds,
+    unlockRequiresAnyGroup: country?.unlockRequiresAnyGroup === true,
+  };
+};
+
+const withCountryUnlock = (country, unlockContext) => ({
+  ...country,
+  unlock: buildCountryUnlock(country, unlockContext),
+});
+
+const ensureCountryUnlockedOrThrow = async (country, user) => {
+  const unlockContext = await getUserUnlockContext(user);
+  const unlock = buildCountryUnlock(country, unlockContext);
+
+  if (unlock.isUnlocked) {
+    return unlock;
+  }
+
+  const reason = !unlock.premiumMet
+    ? 'PREMIUM_REQUIRED'
+    : !unlock.levelMet
+    ? 'LEVEL_REQUIRED'
+    : 'GROUPS_REQUIRED';
+
+  const error = new Error('País bloqueado para este usuario');
+  error.statusCode = 403;
+  error.code = reason;
+  error.unlock = unlock;
+  throw error;
+};
 
 // ==============================
 // GET ALL COUNTRIES
 // ==============================
 exports.getAllCountries = async (req, res) => {
   try {
-    const countries = await Country.find({ isActive: true })
-      .select('name code icon description flagUrl order isActive hasRecipes hasCookingSchool hasCulture isPremium presentationHeadline presentationSummary heroImageUrl iconicDishes');
+    const unlockContext = await getUserUnlockContext(req.user);
 
-    res.json(countries);
+    const page = parseInt(req.query.page, 10);
+    const limit = parseInt(req.query.limit, 10);
+    const hasPagination = Number.isFinite(page) || Number.isFinite(limit);
+
+    const safePage = Math.max(Number.isFinite(page) ? page : 1, 1);
+    const safeLimit = Math.min(Math.max(Number.isFinite(limit) ? limit : 20, 1), 100);
+    const skip = (safePage - 1) * safeLimit;
+
+    const countrySelect = [
+      'name',
+      'code',
+      'icon',
+      'description',
+      'flagUrl',
+      'order',
+      'isActive',
+      'hasRecipes',
+      'hasCookingSchool',
+      'hasCulture',
+      'isPremium',
+      'presentationHeadline',
+      'presentationSummary',
+      'heroImageUrl',
+      'iconicDishes',
+      'unlockLevel',
+      'requiredGroupIds',
+      'unlockRequiresAnyGroup',
+    ].join(' ');
+
+    if (!hasPagination) {
+      const countries = await Country.find({ isActive: true })
+        .select(countrySelect)
+        .sort({ order: 1, name: 1 })
+        .lean();
+
+      return res.json(countries.map((country) => withCountryUnlock(country, unlockContext)));
+    }
+
+    const [total, countries] = await Promise.all([
+      Country.countDocuments({ isActive: true }),
+      Country.find({ isActive: true })
+        .select(countrySelect)
+        .sort({ order: 1, name: 1 })
+        .skip(skip)
+        .limit(safeLimit)
+        .lean(),
+    ]);
+
+    return res.json({
+      data: countries.map((country) => withCountryUnlock(country, unlockContext)),
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages: Math.max(Math.ceil(total / safeLimit), 1),
+        hasMore: skip + countries.length < total,
+      },
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -167,8 +384,18 @@ exports.getCountry = async (req, res) => {
       return res.status(404).json({ message: "País no encontrado" });
     }
 
+    await ensureCountryUnlockedOrThrow(country, req.user);
+
     res.json(country);
   } catch (error) {
+    if (error.statusCode === 403) {
+      return res.status(403).json({
+        message: error.message,
+        code: error.code,
+        unlock: error.unlock,
+      });
+    }
+
     res.status(500).json({ message: error.message });
   }
 };
@@ -185,6 +412,8 @@ exports.getCountryHub = async (req, res) => {
       return res.status(404).json({ message: "País no encontrado" });
     }
 
+    const unlock = await ensureCountryUnlockedOrThrow(country, req.user);
+
     const hub = {
       id: country._id,
       name: country.name,
@@ -192,6 +421,7 @@ exports.getCountryHub = async (req, res) => {
       icon: country.icon,
       flagUrl: country.flagUrl,
       isPremium: country.isPremium,
+      unlock,
       sections: {}
     };
 
@@ -231,6 +461,14 @@ exports.getCountryHub = async (req, res) => {
 
     res.json(hub);
   } catch (error) {
+    if (error.statusCode === 403) {
+      return res.status(403).json({
+        message: error.message,
+        code: error.code,
+        unlock: error.unlock,
+      });
+    }
+
     res.status(500).json({ message: error.message });
   }
 };
@@ -246,6 +484,8 @@ exports.getCountrySections = async (req, res) => {
     if (!country) {
       return res.status(404).json({ message: "País no encontrado" });
     }
+
+    await ensureCountryUnlockedOrThrow(country, req.user);
 
     const sections = {};
 
@@ -284,6 +524,14 @@ exports.getCountrySections = async (req, res) => {
 
     res.json(sections);
   } catch (error) {
+    if (error.statusCode === 403) {
+      return res.status(403).json({
+        message: error.message,
+        code: error.code,
+        unlock: error.unlock,
+      });
+    }
+
     res.status(500).json({ message: error.message });
   }
 };

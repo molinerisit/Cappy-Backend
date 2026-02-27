@@ -13,7 +13,7 @@ exports.getGlobalLeaderboard = async (req, res) => {
       .find({})
       .sort({ totalXP: -1 }) // Sort descending by XP
       .limit(limit)
-      .select('username email totalXP level streak completedLessonsCount')
+      .select('username email totalXP level streak completedLessonsCount avatarIcon avatarUrl profileImage')
       .lean();
 
     // Format response with rankings
@@ -25,6 +25,8 @@ exports.getGlobalLeaderboard = async (req, res) => {
       level: user.level,
       streak: user.streak,
       completedLessons: user.completedLessonsCount || 0,
+      avatarIcon: user.avatarIcon || null,
+      avatarUrl: user.avatarUrl || user.profileImage || null,
     }));
 
     res.status(200).json({
@@ -50,7 +52,9 @@ exports.getMyRank = async (req, res) => {
   try {
     const userId = req.user?._id || req.userId;
 
-    const user = await User.findById(userId).select('totalXP').lean();
+    const user = await User.findById(userId)
+      .select('totalXP level avatarIcon avatarUrl profileImage')
+      .lean();
     
     if (!user) {
       return res.status(404).json({
@@ -74,6 +78,9 @@ exports.getMyRank = async (req, res) => {
       data: {
         rank: myRank,
         totalXP: user.totalXP,
+        level: user.level || 1,
+        avatarIcon: user.avatarIcon || null,
+        avatarUrl: user.avatarUrl || user.profileImage || null,
         totalUsers: totalUsers,
         percentile: totalUsers > 0 ? ((totalUsers - myRank) / totalUsers * 100).toFixed(1) : 0,
       },
@@ -96,7 +103,9 @@ exports.getLeaderboardAroundMe = async (req, res) => {
   try {
     const userId = req.user?._id || req.userId;
 
-    const user = await User.findById(userId).select('totalXP username').lean();
+    const user = await User.findById(userId)
+      .select('totalXP username level streak avatarIcon avatarUrl profileImage')
+      .lean();
     
     if (!user) {
       return res.status(404).json({
@@ -112,7 +121,7 @@ exports.getLeaderboardAroundMe = async (req, res) => {
       })
       .sort({ totalXP: -1 })
       .limit(10)
-      .select('username email totalXP level streak')
+      .select('username email totalXP level streak avatarIcon avatarUrl profileImage')
       .lean();
 
     // Get users below current user
@@ -122,7 +131,7 @@ exports.getLeaderboardAroundMe = async (req, res) => {
       })
       .sort({ totalXP: -1 })
       .limit(10)
-      .select('username email totalXP level streak')
+      .select('username email totalXP level streak avatarIcon avatarUrl profileImage')
       .lean();
 
     // Calculate rank
@@ -145,6 +154,8 @@ exports.getLeaderboardAroundMe = async (req, res) => {
       level: u.level || 1,
       streak: u.streak || 0,
       isCurrentUser: u.isCurrentUser || false,
+      avatarIcon: u.avatarIcon || null,
+      avatarUrl: u.avatarUrl || u.profileImage || null,
     }));
 
     res.status(200).json({
