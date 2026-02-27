@@ -1,4 +1,5 @@
 const User = require('../models/user.model');
+const LearningPath = require('../models/LearningPath.model');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
@@ -87,6 +88,14 @@ exports.getProfile = async (req, res) => {
       lifesLocked
     } = req.user;
 
+    let currentPathTitle = null;
+    if (currentPathId) {
+      const currentPath = await LearningPath.findById(currentPathId)
+        .select('title')
+        .lean();
+      currentPathTitle = currentPath?.title || null;
+    }
+
     res.json({
       id: _id,
       email,
@@ -99,6 +108,7 @@ exports.getProfile = async (req, res) => {
       dietType,
       timePreference,
       currentPathId,
+      currentPathTitle,
       lives,
       lifesLocked,
     });

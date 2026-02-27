@@ -387,6 +387,7 @@ const createNode = async (payload) => {
     level,
     positionIndex,
     xpReward,
+    isLockedByDefault,
     steps,
     metadata
   } = payload;
@@ -403,6 +404,7 @@ const createNode = async (payload) => {
     level,
     positionIndex,
     xpReward
+    ,isLockedByDefault
   });
 
   if (!pathIdObj || !title) {
@@ -472,6 +474,7 @@ const createNode = async (payload) => {
     level: normalizedLevel,
     positionIndex: normalizedPosition,
     xpReward: xpReward ?? 0,
+    isLockedByDefault: isLockedByDefault !== false,
     steps: steps ?? [],
     metadata: metadata ?? {},
     isDeleted: false

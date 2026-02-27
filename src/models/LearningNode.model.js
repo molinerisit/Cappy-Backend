@@ -102,6 +102,7 @@ const learningNodeSchema = new mongoose.Schema(
     groupTitle: { type: String, default: '' },
     
     // Unlock system
+    isLockedByDefault: { type: Boolean, default: true },
     requiredNodes: [
       {
         type: mongoose.Schema.Types.ObjectId,

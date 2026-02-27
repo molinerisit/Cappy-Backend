@@ -1,5 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
+const {
+	baseApiLimiter,
+	authLimiter,
+	adminLimiter,
+} = require('./middleware/rateLimit.middleware');
 
 // ========================================
 // MAIN ROUTES (UNIFIED API)
@@ -38,8 +44,12 @@ const leaderboardRoutes = require('./routes/leaderboard.routes');
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 app.use(cors());
+app.use(compression());
 app.use(express.json());
+app.use('/api', baseApiLimiter);
 
 // ========================================
 // UNIFIED API (v2.0 - Clean Architecture)
@@ -49,8 +59,8 @@ app.use('/api', mainRoutes);
 // ========================================
 // Core Routes
 // ========================================
-app.use('/api/auth', authRoutes);
-app.use("/api/admin", adminRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/admin', adminLimiter, adminRoutes);
 app.use('/api/lives', livesRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 

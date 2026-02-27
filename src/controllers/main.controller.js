@@ -5,18 +5,60 @@ const UserProgress = require('../models/UserProgress.model');
 const User = require('../models/user.model');
 const Recipe = require('../models/Recipe.model');
 const Culture = require('../models/Culture.model');
-const { getOrCreateNodeProgress } = require('../services/nodeProgress.service');
+const {
+  getOrCreateNodeProgress,
+  getNextNodeForPath,
+  syncUnlockState,
+} = require('../services/nodeProgress.service');
+const {
+  getCatalogCacheKey,
+  getCachedCatalogResponse,
+  setCachedCatalogResponse,
+} = require('../services/catalogCache.service');
 
 // ========================================
 // GET ALL COUNTRIES (Experiencia Culinaria)
 // ========================================
 exports.getAllCountries = async (req, res) => {
   try {
-    const countries = await Country.find({ isActive: true })
-      .select('name code icon description order isPremium')
-      .sort('order');
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const rawLimit = parseInt(req.query.limit, 10) || 20;
+    const limit = Math.min(Math.max(rawLimit, 1), 100);
+    const skip = (page - 1) * limit;
+    const cacheKey = getCatalogCacheKey('countries', page, limit);
 
-    res.json(countries);
+    const cachedResponse = getCachedCatalogResponse(cacheKey);
+    if (cachedResponse) {
+      res.set('Cache-Control', 'public, max-age=60');
+      return res.json(cachedResponse);
+    }
+
+    const filter = { isActive: true };
+
+    const [total, countries] = await Promise.all([
+      Country.countDocuments(filter),
+      Country.find(filter)
+        .select('name code icon description order isPremium')
+        .sort({ order: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    const response = {
+      data: countries,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(Math.ceil(total / limit), 1),
+        hasMore: skip + countries.length < total
+      }
+    };
+
+    setCachedCatalogResponse(cacheKey, response);
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json(response);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -142,8 +184,8 @@ exports.getCountryHub = async (req, res) => {
           xpReward: recipe.xpReward || 50,
           order: index + 1,
           steps: recipe.steps || [],
-          // Mark first recipe as unlocked, rest locked
-          status: index === 0 ? 'unlocked' : 'locked'
+          // Mark first recipe as active, rest locked
+          status: index === 0 ? 'active' : 'locked'
         }));
       } else {
         nodesData = nodesData.map(node => ({
@@ -151,7 +193,7 @@ exports.getCountryHub = async (req, res) => {
           status: completedIds.includes(node._id.toString())
             ? 'completed'
             : unlockedIds.includes(node._id.toString())
-            ? 'unlocked'
+            ? 'active'
             : 'locked'
         }));
       }
@@ -190,8 +232,8 @@ exports.getCountryHub = async (req, res) => {
           xpReward: item.xpReward || 30,
           order: index + 1,
           steps: item.steps || [],
-          // Mark first culture item as unlocked, rest locked
-          status: index === 0 ? 'unlocked' : 'locked'
+          // Mark first culture item as active, rest locked
+          status: index === 0 ? 'active' : 'locked'
         }));
       } else {
         nodesData = nodesData.map(node => ({
@@ -199,7 +241,7 @@ exports.getCountryHub = async (req, res) => {
           status: completedIds.includes(node._id.toString())
             ? 'completed'
             : unlockedIds.includes(node._id.toString())
-            ? 'unlocked'
+            ? 'active'
             : 'locked'
         }));
       }
@@ -310,46 +352,76 @@ exports.getCultureDetail = async (req, res) => {
 exports.getGoalPaths = async (req, res) => {
   try {
     const userId = req.user?.id;
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const rawLimit = parseInt(req.query.limit, 10) || 12;
+    const limit = Math.min(Math.max(rawLimit, 1), 100);
+    const skip = (page - 1) * limit;
+    const isCacheable = !userId;
+    const cacheKey = getCatalogCacheKey('goals', page, limit);
 
-    const goalPaths = await LearningPath.find({
+    if (isCacheable) {
+      const cachedResponse = getCachedCatalogResponse(cacheKey);
+      if (cachedResponse) {
+        res.set('Cache-Control', 'public, max-age=60');
+        return res.json(cachedResponse);
+      }
+    }
+
+    const filter = {
       type: 'goal',
       isActive: true
-    })
-      .populate('nodes')
-      .sort('order');
+    };
 
-    // If user is authenticated, get progress
-    const response = [];
-    for (const path of goalPaths) {
-      let progress = null;
-      if (userId) {
-        progress = await getOrCreateNodeProgress(userId, path._id);
-      }
+    const [total, goalPaths] = await Promise.all([
+      LearningPath.countDocuments(filter),
+      LearningPath.find(filter)
+        .select('goalType title description icon isPremium order nodes')
+        .sort({ order: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
 
-      const unlockedIds = progress?.unlockedLessons || [];
+    const progressList = userId
+      ? await Promise.all(
+          goalPaths.map((path) => getOrCreateNodeProgress(userId, path._id))
+        )
+      : [];
+
+    const response = goalPaths.map((path, index) => {
+      const progress = userId ? progressList[index] : null;
       const completedIds = progress?.completedLessons || [];
 
-      response.push({
+      return {
         _id: path._id,
         goalType: path.goalType,
         title: path.title,
         description: path.description,
         icon: path.icon,
         isPremium: path.isPremium,
-        totalNodes: path.nodes.length,
+        totalNodes: Array.isArray(path.nodes) ? path.nodes.length : 0,
         completedNodes: completedIds.length,
-        nodes: path.nodes.map(node => ({
-          ...node.toObject(),
-          status: completedIds.includes(node._id.toString())
-            ? 'completed'
-            : unlockedIds.includes(node._id.toString())
-            ? 'unlocked'
-            : 'locked'
-        }))
-      });
+        nodes: []
+      };
+    });
+
+    const payload = {
+      data: response,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(Math.ceil(total / limit), 1),
+        hasMore: skip + response.length < total
+      }
+    };
+
+    if (isCacheable) {
+      setCachedCatalogResponse(cacheKey, payload);
+      res.set('Cache-Control', 'public, max-age=60');
     }
 
-    res.json(response);
+    res.json(payload);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -362,8 +434,36 @@ exports.getPathWithNodes = async (req, res) => {
   try {
     const { pathId } = req.params;
     const userId = req.user?.id;
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const rawLimit = parseInt(req.query.limit, 10) || 24;
+    const limit = Math.min(Math.max(rawLimit, 1), 100);
+    const skip = (page - 1) * limit;
 
-    const path = await LearningPath.findById(pathId).populate('nodes');
+    const baseFilter = {
+      pathId,
+      isDeleted: { $ne: true },
+      status: 'active'
+    };
+
+    const [path, totalNodes, nodes] = await Promise.all([
+      LearningPath.findById(pathId)
+        .select('_id type title description icon groups')
+        .populate({
+          path: 'groups',
+          match: { isDeleted: false },
+          select: '_id title order',
+          options: { sort: { order: 1 } }
+        })
+        .lean(),
+      LearningNode.countDocuments(baseFilter),
+      LearningNode.find(baseFilter)
+        .select('_id title description type difficulty xpReward order groupId groupTitle level positionIndex icon media')
+        .sort({ level: 1, positionIndex: 1, order: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
     if (!path) {
       return res.status(404).json({ message: 'Path no encontrado' });
     }
@@ -374,19 +474,28 @@ exports.getPathWithNodes = async (req, res) => {
       progress = await getOrCreateNodeProgress(userId, pathId);
     }
 
-    const unlockedIds = progress?.unlockedLessons || [];
-    const completedIds = progress?.completedLessons || [];
+    const unlockedIds =
+      progress?.unlockedLessons?.map((id) => id.toString()) || [];
+    const completedIds =
+      progress?.completedLessons?.map((id) => id.toString()) || [];
 
     const response = {
-      ...path.toObject(),
-      nodes: path.nodes.map(node => ({
-        ...node.toObject(),
+      ...path,
+      nodes: nodes.map(node => ({
+        ...node,
         status: completedIds.includes(node._id.toString())
           ? 'completed'
           : unlockedIds.includes(node._id.toString())
-          ? 'unlocked'
+          ? 'active'
           : 'locked'
-      }))
+      })),
+      pagination: {
+        page,
+        limit,
+        total: totalNodes,
+        totalPages: Math.max(Math.ceil(totalNodes / limit), 1),
+        hasMore: skip + nodes.length < totalNodes
+      }
     };
 
     res.json(response);
@@ -450,23 +559,8 @@ exports.completeNode = async (req, res) => {
       progress.streak = 1;
     }
 
-    // 8. Get all nodes for unlock logic
-    const allNodes = await LearningNode.find({ pathId: node.pathId }).sort('order');
-    const currentNodeIndex = allNodes.findIndex(n => n._id.toString() === nodeId);
-
-    // 9. Unlock next node(s) by order (only on first completion)
-    if (!isAlreadyCompleted && currentNodeIndex < allNodes.length - 1) {
-      const nextNode = allNodes[currentNodeIndex + 1];
-      
-      // Check if already unlocked to avoid duplicates
-      const alreadyUnlocked = progress.unlockedLessons.some(
-        id => id.toString() === nextNode._id.toString()
-      );
-      
-      if (!alreadyUnlocked) {
-        progress.unlockedLessons.push(nextNode._id);
-      }
-    }
+    // 8. Synchronize unlock state using deterministic sequence
+    progress = await syncUnlockState(progress, node.pathId);
 
     await progress.save();
 
@@ -477,9 +571,7 @@ exports.completeNode = async (req, res) => {
     await user.save();
 
     // 11. Return updated data
-    const nextNode = currentNodeIndex < allNodes.length - 1 
-      ? allNodes[currentNodeIndex + 1] 
-      : null;
+    const nextNode = await getNextNodeForPath(node.pathId, nodeId);
     
     res.json({
       message: isAlreadyCompleted 
