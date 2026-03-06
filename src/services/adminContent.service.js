@@ -15,6 +15,7 @@ const NODE_TYPES = [
   'technique',
   'cultural',
   'challenge',
+  'defense',
   'skill'
 ];
 

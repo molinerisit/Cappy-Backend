@@ -217,6 +217,80 @@ async function seedFullDemo() {
       metadata: { tags: ['cuchillos', 'tecnica'] },
     });
 
+    const foodHygieneNode = await LearningNode.create({
+      pathId: cookingSchoolPath._id,
+      groupId: cookingBasicsGroup._id,
+      groupTitle: cookingBasicsGroup.title,
+      title: 'Higiene Alimentaria',
+      description: 'Contaminacion cruzada y almacenamiento seguro',
+      type: 'explanation',
+      status: 'active',
+      level: 1,
+      positionIndex: 3,
+      xpReward: 50,
+      steps: [
+        {
+          title: 'Prevencion basica',
+          order: 1,
+          cards: [
+            {
+              type: 'list',
+              data: {
+                items: [
+                  'Separa carnes de vegetales',
+                  'Refrigera correctamente',
+                  'Respeta fechas de vencimiento',
+                ],
+              },
+            },
+            {
+              type: 'image',
+              data: { imageUrl: IMAGE_URL, caption: 'Organización segura de la heladera.' },
+            },
+          ],
+        },
+      ],
+      metadata: { tags: ['higiene', 'basico'] },
+    });
+
+    const heatControlNode = await LearningNode.create({
+      pathId: cookingSchoolPath._id,
+      groupId: cookingBasicsGroup._id,
+      groupTitle: cookingBasicsGroup.title,
+      title: 'Control de Fuegos',
+      description: 'Temperatura, control y equipamiento',
+      type: 'technique',
+      status: 'active',
+      level: 1,
+      positionIndex: 4,
+      xpReward: 55,
+      steps: [
+        {
+          title: 'Fuegos basicos',
+          order: 1,
+          cards: [
+            {
+              type: 'text',
+              data: {
+                text: 'Fuego alto para sellar, medio para coccion, bajo para lenta.',
+              },
+            },
+          ],
+        },
+        {
+          title: 'Practica con timer',
+          order: 2,
+          cards: [
+            {
+              type: 'timer',
+              data: { duration: 5 },
+            },
+          ],
+        },
+      ],
+      metadata: { tags: ['fuegos', 'temperatura'] },
+    });
+
     const saucesNode = await LearningNode.create({
       pathId: cookingSchoolPath._id,
       groupId: cookingTechGroup._id,
@@ -282,6 +356,73 @@ async function seedFullDemo() {
         },
       ],
       metadata: { tags: ['organizacion'] },
+    });
+
+    const dishComboNode = await LearningNode.create({
+      pathId: cookingSchoolPath._id,
+      groupId: cookingTechGroup._id,
+      groupTitle: cookingTechGroup.title,
+      title: 'Platos Combinados',
+      description: 'Armonía de sabores y presentación',
+      type: 'recipe',
+      status: 'active',
+      level: 3,
+      positionIndex: 1,
+      xpReward: 120,
+      steps: [
+        {
+          title: 'Equilibrio de sabores',
+          order: 1,
+          cards: [
+            {
+              type: 'text',
+              data: {
+                text: 'Combina proteína, verdura y almidón en proporciones adecuadas.',
+              },
+            },
+          ],
+        },
+        {
+          title: 'Presentacion profesional',
+          order: 2,
+          cards: [
+            {
+              type: 'list',
+              data: {
+                items: [
+                  'Altura y volumen',
+                  'Colores contrastantes',
+                  'Limpieza del plato',
+                ],
+              },
+            },
+            {
+              type: 'image',
+              data: { imageUrl: IMAGE_URL, caption: 'Plato bien presentado.' },
+            },
+          ],
+        },
+        {
+          title: 'Quiz de marcacion',
+          order: 3,
+          cards: [
+            {
+              type: 'quiz',
+              data: {
+                question: 'Cual es la regla de 1/3 en servicios?',
+                options: [
+                  'Proteína, verdura, fécula en iguales proporciones',
+                  '1/3 carb, 1/3 proteína, 1/3 verdura',
+                  'Depende del paladar del cliente',
+                  'No existe tal regla',
+                ],
+                correctIndex: 1,
+              },
+            },
+          ],
+        },
+      ],
+      metadata: { tags: ['platos', 'presentacion', 'intermedio'] },
     });
 
     const miseEnPlaceLinked = await LearningNode.create({
@@ -423,8 +564,11 @@ async function seedFullDemo() {
     cookingSchoolPath.nodes = [
       safetyNode._id,
       knifeNode._id,
+      foodHygieneNode._id,
+      heatControlNode._id,
       saucesNode._id,
       miseEnPlaceNode._id,
+      dishComboNode._id,
     ];
     loseWeightPath.nodes = [miseEnPlaceLinked._id, mealPrepNode._id];
     veganPath.nodes = [plantProteinNode._id, tofuNode._id, veganSauceNode._id];
