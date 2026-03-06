@@ -8,6 +8,7 @@ const NODE_TYPES = [
   'technique',
   'cultural',
   'challenge',
+  'defense',
   // Legacy types (keep for backward compatibility)
   'skill'
 ];
@@ -22,6 +23,7 @@ const nodeTypeToIconKey = {
   technique: 'technique',
   cultural: 'cultural',
   challenge: 'challenge',
+  defense: 'defense',
   skill: 'technique'
 };
 
