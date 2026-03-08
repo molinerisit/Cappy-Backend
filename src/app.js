@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
+const path = require('path');
 const {
 	baseApiLimiter,
 	authLimiter,
@@ -42,6 +43,11 @@ const cultureRoutes = require('./routes/culture.routes');
 const livesRoutes = require('./routes/lives.routes');
 const leaderboardRoutes = require('./routes/leaderboard.routes');
 
+// ========================================
+// UPLOAD ROUTES
+// ========================================
+const uploadRoutes = require('./routes/upload.routes');
+
 const app = express();
 
 app.set('trust proxy', 1);
@@ -49,6 +55,12 @@ app.set('trust proxy', 1);
 app.use(cors());
 app.use(compression());
 app.use(express.json());
+
+// ========================================
+// SERVE STATIC FILES (Uploaded Images)
+// ========================================
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 app.use('/api', baseApiLimiter);
 
 // ========================================
@@ -61,6 +73,7 @@ app.use('/api', mainRoutes);
 // ========================================
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/admin', adminLimiter, adminRoutes);
+app.use('/api/admin/v2/upload', adminLimiter, uploadRoutes);
 app.use('/api/lives', livesRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 
