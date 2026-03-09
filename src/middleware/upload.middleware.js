@@ -3,18 +3,9 @@
  */
 
 const multer = require('multer');
-const path = require('path');
 
-// Configuración de storage temporal
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/temp/'); // Directorio temporal
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Keep files in memory to stream them directly to Cloudinary.
+const storage = multer.memoryStorage();
 
 // Filtro de tipos de archivo
 const fileFilter = (req, file, cb) => {

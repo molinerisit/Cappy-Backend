@@ -1,0 +1,378 @@
+/**
+ * 🔐 Suite de Integración: Autenticación
+ * 
+ * Prueba:
+ * 1. Registro exitoso vs. rechazo por contraseña débil (score < 3)
+ * 2. Login con credenciales correctas vs. incorrectas
+ * 3. Bloqueo por Rate Limiting tras 5+ intentos fallidos de login
+ */
+
+const request = require('supertest');
+const bcrypt = require('bcrypt');
+const app = require('../../src/app');
+const User = require('../../src/models/user.model');
+
+describe('Auth Integration Tests', () => {
+  beforeAll(() => {
+    process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-integration-tests';
+  });
+
+  afterAll(async () => {
+    // Cleanup final
+    await User.deleteMany({ email: /test-integration.*@example\.com/ });
+  });
+
+  describe('1️⃣ POST /api/auth/register - Registro de Usuario', () => {
+    
+    test('✅ Registra exitosamente usuario con contraseña fuerte', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test-integration-success@example.com',
+          password: 'Tr0pic@lFru1t92!Strong',
+          confirmPassword: 'Tr0pic@lFru1t92!Strong',
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body.success).toBe(true);
+      expect(response.body.user.email).toBe('test-integration-success@example.com');
+      expect(response.body.user.role).toBe('user');
+
+      // Verificar que usuario fue creado en BD
+      const user = await User.findOne({ email: 'test-integration-success@example.com' });
+      expect(user).toBeTruthy();
+      expect(user.password).not.toBe('Tr0pic@lFru1t92!Strong'); // Hash verificado
+    });
+
+    test('❌ Rechaza contraseña débil (score < 3) - Caso "Password123!"', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test-integration-weak1@example.com',
+          password: 'Password123!',
+          confirmPassword: 'Password123!',
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('WEAK_PASSWORD');
+      expect(response.body.error.details.score).toBeLessThan(3);
+    });
+
+    test('❌ Rechaza contraseña débil (score < 3) - Caso "Admin123456!"', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test-integration-weak2@example.com',
+          password: 'Admin123456!',
+          confirmPassword: 'Admin123456!',
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('WEAK_PASSWORD');
+      expect(response.body.error.details.score).toBeLessThan(3);
+    });
+
+    test('❌ Rechaza contraseña que no cumple requisitos mínimos (sin mayúsculas)', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test-integration-nouppercase@example.com',
+          password: 'tr0pic@lfru1t92!',
+          confirmPassword: 'tr0pic@lfru1t92!',
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    test('❌ Rechaza contraseña menor a 12 caracteres', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test-integration-short@example.com',
+          password: 'Short1!',
+          confirmPassword: 'Short1!',
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(response.body.error.details.some(d => d.message.includes('12 caracteres'))).toBe(true);
+    });
+
+    test('❌ Rechaza email inválido', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'invalid-email-format',
+          password: 'Tr0pic@lFru1t92!',
+          confirmPassword: 'Tr0pic@lFru1t92!',
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    test('❌ Rechaza registro duplicado (email ya existe)', async () => {
+      // Primer registro
+      await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test-integration-duplicate@example.com',
+          password: 'Tr0pic@lFru1t92!',
+          confirmPassword: 'Tr0pic@lFru1t92!',
+        });
+
+      // Segundo intento con mismo email
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test-integration-duplicate@example.com',
+          password: 'DifferentP@ss123!',
+          confirmPassword: 'DifferentP@ss123!',
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('USER_ALREADY_EXISTS');
+    });
+  });
+
+  describe('2️⃣ POST /api/auth/login - Login de Usuario', () => {
+    
+    beforeEach(async () => {
+      // Crear usuario de prueba para login
+      const hashedPassword = await bcrypt.hash('ValidPass123!Strong', 12);
+      await User.create({
+        email: 'test-integration-login@example.com',
+        password: hashedPassword,
+        role: 'user',
+      });
+    });
+
+    test('✅ Login exitoso con credenciales correctas', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'test-integration-login@example.com',
+          password: 'ValidPass123!Strong',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.token).toBeDefined();
+      expect(typeof response.body.token).toBe('string');
+      expect(response.body.user.email).toBe('test-integration-login@example.com');
+    });
+
+    test('❌ Rechaza login con contraseña incorrecta', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'test-integration-login@example.com',
+          password: 'WrongPassword123!',
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+    });
+
+    test('❌ Rechaza login con email no registrado', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'nonexistent@example.com',
+          password: 'ValidPass123!Strong',
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+    });
+  });
+
+  describe('3️⃣ Rate Limiting - Protección contra Brute Force', () => {
+    
+    beforeEach(async () => {
+      // Crear usuario de prueba
+      const hashedPassword = await bcrypt.hash('ValidPass123!Strong', 12);
+      await User.create({
+        email: 'test-integration-ratelimit@example.com',
+        password: hashedPassword,
+        role: 'user',
+      });
+    });
+
+    test('❌ Bloquea tras múltiples intentos fallidos de login (Rate Limiting)', async () => {
+      const email = 'test-integration-ratelimit@example.com';
+      
+      // Hacer 30+ intentos fallidos (el límite es 30 según authLimiter)
+      // Nota: authLimiter tiene skipSuccessfulRequests=true, así que solo cuenta fallos
+      
+      const failedAttempts = [];
+      for (let i = 0; i < 32; i++) {
+        failedAttempts.push(
+          request(app)
+            .post('/api/auth/login')
+            .send({
+              email,
+              password: `wrong-password-${i}`,
+            })
+        );
+      }
+
+      const responses = await Promise.all(failedAttempts);
+
+      // Los primeros 30 deben ser 401 INVALID_CREDENTIALS
+      const first30 = responses.slice(0, 30);
+      first30.forEach(response => {
+        expect(response.status).toBe(401);
+        expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+      });
+
+      // Los siguientes deben ser 429 RATE_LIMIT_EXCEEDED
+      const rateLimitedResponses = responses.slice(30);
+      rateLimitedResponses.forEach(response => {
+        expect(response.status).toBe(429);
+        expect(response.body.error.code).toBe('RATE_LIMIT_EXCEEDED');
+      });
+    }, 30000); // Timeout de 30s para este test
+
+    test('❌ Bloquea tras múltiples intentos de registro con email inválido', async () => {
+      const failedRegistrations = [];
+      
+      for (let i = 0; i < 32; i++) {
+        failedRegistrations.push(
+          request(app)
+            .post('/api/auth/register')
+            .send({
+              email: 'invalid-email-format',
+              password: 'ValidPass123!Strong',
+              confirmPassword: 'ValidPass123!Strong',
+            })
+        );
+      }
+
+      const responses = await Promise.all(failedRegistrations);
+
+      // Los primeros 30 deben ser 400 VALIDATION_ERROR
+      const first30 = responses.slice(0, 30);
+      first30.forEach(response => {
+        expect(response.status).toBe(400);
+      });
+
+      // Los siguientes deben ser bloqueados por rate limiting
+      const rateLimitedResponses = responses.slice(30);
+      rateLimitedResponses.forEach(response => {
+        expect(response.status).toBe(429);
+        expect(response.body.error.code).toBe('RATE_LIMIT_EXCEEDED');
+      });
+    }, 30000);
+  });
+
+  describe('4️⃣ Validación de Respuestas de Error', () => {
+    
+    test('✅ Respuestas de error NO exponen detalles internos de BD', async () => {
+      // Intentar registrar con datos que podrían causar error de DB
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test@example.com',
+          password: 'short', // Muy corta
+          confirmPassword: 'short',
+        });
+
+      expect(response.status).toBe(400);
+      
+      // Verificar que NO expone detalles internos
+      const bodyString = JSON.stringify(response.body);
+      expect(bodyString).not.toMatch(/Cast to ObjectId/i);
+      expect(bodyString).not.toMatch(/mongoose/i);
+      expect(bodyString).not.toMatch(/mongodb/i);
+      expect(bodyString).not.toMatch(/stack trace/i);
+      expect(bodyString).not.toMatch(/at Object\./i);
+    });
+
+    test('✅ Respuesta de login fallido es genérica (no revela si email existe)', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'nonexistent@example.com',
+          password: 'SomePassword123!',
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+      
+      // No debe decir "usuario no encontrado" o "email no existe"
+      expect(response.body.error.message).not.toMatch(/no encontrado/i);
+      expect(response.body.error.message).not.toMatch(/no existe/i);
+      
+      // Debe ser mensaje genérico
+      expect(response.body.error.message).toMatch(/credenciales/i);
+    });
+  });
+
+  describe('5️⃣ Protección de Rutas Autenticadas', () => {
+    
+    test('❌ Rechaza acceso sin token a ruta protegida', async () => {
+      const response = await request(app)
+        .get('/api/auth/profile');
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe('NO_AUTHORIZATION');
+    });
+
+    test('❌ Rechaza token con formato inválido', async () => {
+      const response = await request(app)
+        .get('/api/auth/profile')
+        .set('Authorization', 'InvalidFormat token123');
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe('INVALID_AUTH_FORMAT');
+    });
+
+    test('❌ Rechaza token manipulado', async () => {
+      const fakeToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZha2UifQ.invalid';
+      
+      const response = await request(app)
+        .get('/api/auth/profile')
+        .set('Authorization', `Bearer ${fakeToken}`);
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe('INVALID_TOKEN');
+    });
+
+    test('✅ Permite acceso con token válido', async () => {
+      // Primero registrar usuario
+      const registerResponse = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test-integration-protected@example.com',
+          password: 'Tr0pic@lFru1t92!Strong',
+          confirmPassword: 'Tr0pic@lFru1t92!Strong',
+        });
+
+      // Luego login para obtener token
+      const loginResponse = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'test-integration-protected@example.com',
+          password: 'Tr0pic@lFru1t92!Strong',
+        });
+
+      const token = loginResponse.body.token;
+
+      // Ahora acceder a ruta protegida
+      const profileResponse = await request(app)
+        .get('/api/auth/profile')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(profileResponse.status).toBe(200);
+      expect(profileResponse.body.success).toBe(true);
+      expect(profileResponse.body.user.email).toBe('test-integration-protected@example.com');
+    });
+  });
+});

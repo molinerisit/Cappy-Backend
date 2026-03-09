@@ -7,6 +7,7 @@ const {
 	authLimiter,
 	adminLimiter,
 } = require('./middleware/rateLimit.middleware');
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler.middleware');
 
 // ========================================
 // MAIN ROUTES (UNIFIED API)
@@ -47,6 +48,7 @@ const leaderboardRoutes = require('./routes/leaderboard.routes');
 // UPLOAD ROUTES
 // ========================================
 const uploadRoutes = require('./routes/upload.routes');
+const setupSwagger = require('./swagger');
 
 const app = express();
 
@@ -55,6 +57,7 @@ app.set('trust proxy', 1);
 app.use(cors());
 app.use(compression());
 app.use(express.json());
+setupSwagger(app);
 
 // ========================================
 // SERVE STATIC FILES (Uploaded Images)
@@ -73,7 +76,7 @@ app.use('/api', mainRoutes);
 // ========================================
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/admin', adminLimiter, adminRoutes);
-app.use('/api/admin/v2/upload', adminLimiter, uploadRoutes);
+app.use('/api/admin/v2/upload', uploadRoutes);
 app.use('/api/lives', livesRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 
@@ -94,5 +97,11 @@ app.use('/api/nodes', learningNodeRoutes);
 app.use('/api/learning-paths', learningPathRoutes);
 app.use('/api/recipe-steps', recipeStepRoutes);
 app.use('/api/culture', cultureRoutes);
+
+// ========================================
+// ERROR HANDLERS (MUST BE LAST)
+// ========================================
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 module.exports = app;

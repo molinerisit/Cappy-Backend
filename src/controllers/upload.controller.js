@@ -4,6 +4,28 @@
  */
 
 const uploadService = require('../services/upload.service');
+const UploadAsset = require('../models/UploadAsset.model');
+
+const persistUploadRecord = async ({
+  result,
+  sourceType,
+  sourceUrl = null,
+  originalFilename = null,
+  uploadedBy = null,
+}) => {
+  return UploadAsset.create({
+    url: result.url,
+    publicId: result.publicId,
+    format: result.format,
+    width: result.width,
+    height: result.height,
+    size: result.size,
+    sourceType,
+    sourceUrl,
+    originalFilename,
+    uploadedBy,
+  });
+};
 
 /**
  * POST /api/admin/v2/upload/image
@@ -37,11 +59,18 @@ const uploadImage = async (req, res) => {
     }
 
     const result = await uploadService.uploadImage(req.file);
+    const uploadAsset = await persistUploadRecord({
+      result,
+      sourceType: 'file',
+      originalFilename: req.file.originalname || null,
+      uploadedBy: req.user?._id || null,
+    });
 
     res.status(200).json({
       success: true,
       message: 'Imagen subida exitosamente',
       data: {
+        id: uploadAsset._id,
         url: result.url,
         publicId: result.publicId || null,
         format: result.format,
@@ -75,12 +104,20 @@ const importImageFromUrl = async (req, res) => {
       });
     }
 
-    const result = await uploadService.uploadImageFromUrl(url.trim());
+    const sanitizedUrl = url.trim();
+    const result = await uploadService.uploadImageFromUrl(sanitizedUrl);
+    const uploadAsset = await persistUploadRecord({
+      result,
+      sourceType: 'url',
+      sourceUrl: sanitizedUrl,
+      uploadedBy: req.user?._id || null,
+    });
 
     res.status(200).json({
       success: true,
       message: 'Imagen importada exitosamente',
       data: {
+        id: uploadAsset._id,
         url: result.url,
         publicId: result.publicId || null,
         format: result.format,
@@ -112,7 +149,8 @@ const importImageFromUrl = async (req, res) => {
  */
 const deleteImage = async (req, res) => {
   try {
-    const { publicId } = req.params;
+    const encodedPublicId = req.params.publicId;
+    const publicId = decodeURIComponent(encodedPublicId || '');
     
     if (!publicId) {
       return res.status(400).json({
@@ -122,6 +160,7 @@ const deleteImage = async (req, res) => {
     }
 
     await uploadService.deleteImage(publicId);
+    await UploadAsset.findOneAndDelete({ publicId });
 
     res.status(200).json({
       success: true,

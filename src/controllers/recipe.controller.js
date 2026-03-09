@@ -2,10 +2,45 @@ const Recipe = require("../models/Recipe.model");
 const Country = require("../models/Country.model");
 const UserProgress = require("../models/UserProgress.model");
 const User = require('../models/user.model');
+const UploadAsset = require('../models/UploadAsset.model');
 const {
   applyProgressDailyStreak,
   applyUserDailyStreak,
 } = require('../services/streak.service');
+
+const isCloudinaryUrl = (value) => {
+  try {
+    const parsed = new URL(String(value || '').trim());
+    return parsed.protocol === 'https:' && parsed.hostname === 'res.cloudinary.com';
+  } catch (_error) {
+    return false;
+  }
+};
+
+const resolveRecipeImageUrl = async ({ imageUrl, imageAssetId }) => {
+  if (imageUrl) {
+    const normalized = String(imageUrl).trim();
+    if (!isCloudinaryUrl(normalized)) {
+      const error = new Error('imageUrl debe ser una URL HTTPS de Cloudinary');
+      error.statusCode = 400;
+      throw error;
+    }
+    return normalized;
+  }
+
+  if (!imageAssetId) {
+    return undefined;
+  }
+
+  const uploadAsset = await UploadAsset.findById(imageAssetId).select('url').lean();
+  if (!uploadAsset?.url) {
+    const error = new Error('No se encontró el asset de imagen');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return uploadAsset.url;
+};
 
 // ==============================
 // GET RECIPES BY COUNTRY
@@ -194,6 +229,7 @@ exports.createRecipe = async (req, res) => {
       title,
       description,
       imageUrl,
+      imageAssetId,
       difficulty,
       xpReward,
       servings,
@@ -221,11 +257,13 @@ exports.createRecipe = async (req, res) => {
       return res.status(404).json({ message: "País no encontrado" });
     }
 
+    const resolvedImageUrl = await resolveRecipeImageUrl({ imageUrl, imageAssetId });
+
     const recipe = await Recipe.create({
       countryId,
       title,
       description,
-      imageUrl,
+      imageUrl: resolvedImageUrl,
       difficulty: difficulty || 2,
       xpReward: xpReward || 50,
       servings,
@@ -254,7 +292,15 @@ exports.createRecipe = async (req, res) => {
 exports.updateRecipe = async (req, res) => {
   try {
     const { recipeId } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body };
+
+    if (updates.imageUrl || updates.imageAssetId) {
+      updates.imageUrl = await resolveRecipeImageUrl({
+        imageUrl: updates.imageUrl,
+        imageAssetId: updates.imageAssetId,
+      });
+    }
+    delete updates.imageAssetId;
 
     const recipe = await Recipe.findByIdAndUpdate(recipeId, updates, {
       new: true,

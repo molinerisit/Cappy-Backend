@@ -1,6 +1,7 @@
 const User = require('../models/user.model');
 const LearningPath = require('../models/LearningPath.model');
 const UserProgress = require('../models/UserProgress.model');
+const UploadAsset = require('../models/UploadAsset.model');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
@@ -19,70 +20,125 @@ const ALLOWED_AVATAR_ICONS = new Set([
   '🥐',
 ]);
 
+const isCloudinaryUrl = (value) => {
+  try {
+    const parsed = new URL(String(value || '').trim());
+    return parsed.protocol === 'https:' && parsed.hostname === 'res.cloudinary.com';
+  } catch (_error) {
+    return false;
+  }
+};
+
 exports.register = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    // ✅ validatedBody viene del middleware validate(registerSchema)
+    const { email, password } = req.validatedBody;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters' });
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ message: 'Invalid email format' });
-    }
-
+    // 1️⃣ Verificar que usuario no exista
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'USER_ALREADY_EXISTS',
+          message: 'El usuario ya existe con este email'
+        }
+      });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // 2️⃣ Hash de contraseña segura (12 rounds)
+    const hashedPassword = await bcrypt.hash(password, 12);
 
+    // 3️⃣ Crear usuario
     const user = await User.create({
       email,
-      password: hashedPassword
+      password: hashedPassword,
+      role: 'user',
+      verified: false, // Requiere verificación de email
     });
 
-    res.status(201).json({ message: 'User created' });
+    res.status(201).json({
+      success: true,
+      message: 'Usuario creado exitosamente',
+      user: {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+      }
+    });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Error en register:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Error al crear usuario'
+      }
+    });
   }
 };
 
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    // ✅ validatedBody viene del middleware validate(loginSchema)
+    const { email, password } = req.validatedBody;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
-    }
-
+    // 1️⃣ Buscar usuario
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Email o contraseña incorrect a'
+        }
+      });
     }
 
+    // 2️⃣ Validar contraseña
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Email o contraseña incorrecta'
+        }
+      });
     }
 
+    // 3️⃣ Generar JWT
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    res.json({ token, role: user.role });
+    // 4️⃣ Respuesta con flags de seguridad
+    const response = {
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+        forcePasswordChange: user.forcePasswordChange || false,
+        isTempPassword: user.isTempPassword || false,
+      }
+    };
+
+    res.json(response);
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Error en login:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Error al iniciar sesión'
+      }
+    });
   }
 };
 
@@ -94,6 +150,7 @@ exports.getProfile = async (req, res) => {
       role, 
       username,
       avatarIcon,
+      avatarUrl,
       totalXP, 
       level, 
       streak, 
@@ -120,6 +177,7 @@ exports.getProfile = async (req, res) => {
       role,
       username,
       avatarIcon,
+      avatarUrl,
       totalXP,
       level,
       streak,
@@ -261,6 +319,34 @@ exports.updateProfile = async (req, res) => {
       updates.avatarIcon = avatarIcon;
     }
 
+    if (req.body.avatarUrl !== undefined || req.body.avatarAssetId !== undefined) {
+      let avatarUrl = req.body.avatarUrl;
+
+      if (!avatarUrl && req.body.avatarAssetId) {
+        const uploadAsset = await UploadAsset.findById(req.body.avatarAssetId)
+          .select('url')
+          .lean();
+        if (!uploadAsset?.url) {
+          return res.status(404).json({
+            message: 'No se encontró el asset de avatar',
+          });
+        }
+        avatarUrl = uploadAsset.url;
+      }
+
+      if (avatarUrl === null || avatarUrl === '') {
+        updates.avatarUrl = null;
+      } else {
+        const normalizedAvatarUrl = String(avatarUrl).trim();
+        if (!isCloudinaryUrl(normalizedAvatarUrl)) {
+          return res.status(400).json({
+            message: 'avatarUrl debe ser una URL HTTPS de Cloudinary',
+          });
+        }
+        updates.avatarUrl = normalizedAvatarUrl;
+      }
+    }
+
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({
         message: 'No hay campos válidos para actualizar',
@@ -280,6 +366,7 @@ exports.updateProfile = async (req, res) => {
       id: user._id,
       username: user.username,
       avatarIcon: user.avatarIcon,
+      avatarUrl: user.avatarUrl,
       email: user.email,
       totalXP: user.totalXP,
       level: user.level,
@@ -331,6 +418,111 @@ exports.changeCurrentPath = async (req, res) => {
       success: false,
       message: 'Error al cambiar el camino de aprendizaje',
       error: error.message,
+    });
+  }
+};
+
+/**
+ * 🔐 Cambiar contraseña (obligatorio en primer login si es admin)
+ * PATCH /api/auth/change-password
+ * 
+ * Body: { currentPassword, newPassword, confirmPassword }
+ * - Si usuario es admin con forcePasswordChange=true, puede saltarse currentPassword
+ * - Valida que nueva contraseña sea suficientemente fuerte (Joi + zxcvbn)
+ * - Actualiza passwordChangedAt y desactiva forcePasswordChange
+ */
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Usuario no identificado' }
+      });
+    }
+
+    // ✅ validatedBody viene del middleware validate(changePasswordSchema)
+    const { currentPassword, newPassword } = req.validatedBody;
+
+    // 1️⃣ Obtener usuario actual
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'USER_NOT_FOUND', message: 'Usuario no encontrado' }
+      });
+    }
+
+    // 2️⃣ Para usuarios con contraseña normal, currentPassword es obligatoria
+    if (!user.isTempPassword && !currentPassword) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'CURRENT_PASSWORD_REQUIRED',
+          message: 'Debe proporcionar la contraseña actual'
+        }
+      });
+    }
+
+    // 3️⃣ Validar contraseña actual (si NO es primer login con temp password)
+    if (!user.isTempPassword) {
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'INVALID_PASSWORD',
+            message: 'Contraseña actual incorrecta'
+          }
+        });
+      }
+    }
+
+    // 4️⃣ Hashear nueva contraseña (12 rounds)
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    // 5️⃣ Actualizar usuario:
+    // - Nueva contraseña hasheada
+    // - Marcar que cambió contraseña
+    // - Desactivar forcePasswordChange y isTempPassword
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        password: hashedPassword,
+        passwordChangedAt: new Date(),
+        forcePasswordChange: false,  // ✅ Desactiva flag
+        isTempPassword: false,       // ✅ Ya no es temporal
+      },
+      { new: true }
+    ).select('-password');
+
+    // 6️⃣ Incluir información de fuerza de contraseña (si está disponible)
+    const strengthInfo = req.passwordStrength ? {
+      score: req.passwordStrength.score,
+      maxScore: 4,
+      crackTime: req.passwordStrength.crackTime,
+    } : null;
+
+    res.status(200).json({
+      success: true,
+      message: 'Contraseña cambiada exitosamente',
+      user: {
+        id: updatedUser._id,
+        email: updatedUser.email,
+        passwordChangedAt: updatedUser.passwordChangedAt,
+        forcePasswordChange: updatedUser.forcePasswordChange,
+      },
+      ...(strengthInfo && { passwordStrength: strengthInfo })
+    });
+
+  } catch (error) {
+    console.error('❌ Error en changePassword:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Error al cambiar contraseña'
+      }
     });
   }
 };

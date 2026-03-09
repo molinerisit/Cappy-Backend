@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true },
     username: { type: String, default: function() { return this.email.split('@')[0]; } }, // Display name for leaderboard
     avatarIcon: { type: String, default: '👨‍🍳' },
+    avatarUrl: { type: String, default: null },
     skillLevel: { type: Number, default: 1 },
     dietType: { type: String, default: "none" },
     timePreference: { type: Number, default: 20 },
@@ -37,6 +38,11 @@ const userSchema = new mongoose.Schema(
 
     // Current learning path (like Duolingo's course selection)
     currentPathId: { type: mongoose.Schema.Types.ObjectId, ref: "LearningPath", default: null },
+
+    // Security: Password management
+    forcePasswordChange: { type: Boolean, default: false }, // Fuerza cambio de contraseña en primer login
+    passwordChangedAt: { type: Date, default: null }, // Última vez que usuario cambió su contraseña
+    isTempPassword: { type: Boolean, default: false }, // Indica si la contraseña actual es temporal
   },
   { timestamps: true },
 );

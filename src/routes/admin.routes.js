@@ -6,6 +6,13 @@ const isAdmin = require("../middleware/isAdmin");
 
 const adminController = require("../controllers/admin.controller");
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Admin
+ *     description: Operaciones administrativas (requiere rol admin)
+ */
+
 const cultureDisabled = (_req, res) => {
   return res.status(410).json({
     message: "El módulo de Cultura está deshabilitado",
@@ -14,6 +21,19 @@ const cultureDisabled = (_req, res) => {
 };
 
 router.use(auth, isAdmin);
+
+/**
+ * @swagger
+ * /admin/learning-paths:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Listar learning paths
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de learning paths
+ */
 
 // ==============================
 // LEGACY ROUTES
@@ -41,12 +61,94 @@ router.put("/learning-paths/:pathId", adminController.updateLearningPath);
 // Delete learning path
 router.delete("/learning-paths/:pathId", adminController.deleteLearningPath);
 
+/**
+ * @swagger
+ * /admin/learning-nodes:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Listar nodos de aprendizaje
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de nodos
+ */
+
 // ==============================
 // LEARNING NODE ROUTES
 // ==============================
 
 // Get ALL nodes (global, for import)
 router.get("/learning-nodes", adminController.getAllLearningNodes);
+
+/**
+ * @swagger
+ * /admin/users:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Listar usuarios
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de usuarios
+ */
+router.get('/users', adminController.listUsers);
+
+/**
+ * @swagger
+ * /admin/users/{userId}:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Obtener detalle de usuario
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Usuario encontrado
+ *       404:
+ *         description: Usuario no encontrado
+ */
+router.get('/users/:userId', adminController.getUserById);
+
+/**
+ * @swagger
+ * /admin/users/{userId}/role:
+ *   patch:
+ *     tags: [Admin]
+ *     summary: Actualizar rol de usuario
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [user, admin]
+ *             required: [role]
+ *     responses:
+ *       200:
+ *         description: Rol actualizado
+ *       400:
+ *         description: Datos inválidos
+ */
+router.patch('/users/:userId/role', adminController.updateUserRole);
 
 // Get nodes by path
 router.get("/learning-paths/:pathId/nodes", adminController.getNodesByPath);
