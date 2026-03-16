@@ -6,6 +6,54 @@
 const uploadService = require('../services/upload.service');
 const UploadAsset = require('../models/UploadAsset.model');
 
+const IMAGE_EXTENSION_REGEX = /\.(jpe?g|png|gif|webp|svg|avif)$/i;
+const VIDEO_EXTENSION_REGEX = /\.(mp4|webm|mov|avi|mkv|m4v)$/i;
+
+const isAllowedImageFile = (file) => {
+  if (!file) return false;
+
+  const allowedMimeTypes = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+    'image/avif',
+  ]);
+
+  if (allowedMimeTypes.has(file.mimetype)) {
+    return true;
+  }
+
+  // Some web clients send multipart parts as octet-stream.
+  return (
+    file.mimetype === 'application/octet-stream' &&
+    IMAGE_EXTENSION_REGEX.test(file.originalname || '')
+  );
+};
+
+const isAllowedVideoFile = (file) => {
+  if (!file) return false;
+
+  const allowedMimeTypes = new Set([
+    'video/mp4',
+    'video/webm',
+    'video/quicktime',
+    'video/x-msvideo',
+    'video/x-matroska',
+    'video/mp2t',
+  ]);
+
+  if (allowedMimeTypes.has(file.mimetype)) {
+    return true;
+  }
+
+  return (
+    file.mimetype === 'application/octet-stream' &&
+    VIDEO_EXTENSION_REGEX.test(file.originalname || '')
+  );
+};
+
 const persistUploadRecord = async ({
   result,
   sourceType,
@@ -41,11 +89,10 @@ const uploadImage = async (req, res) => {
     }
 
     // Validar que sea una imagen
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!allowedMimeTypes.includes(req.file.mimetype)) {
+    if (!isAllowedImageFile(req.file)) {
       return res.status(400).json({
         success: false,
-        message: 'Formato de archivo no válido. Solo se permiten: JPEG, PNG, GIF, WEBP'
+        message: 'Formato de archivo no válido. Solo se permiten imágenes compatibles'
       });
     }
 
@@ -73,6 +120,7 @@ const uploadImage = async (req, res) => {
         id: uploadAsset._id,
         url: result.url,
         publicId: result.publicId || null,
+        mediaType: result.mediaType || 'image',
         format: result.format,
         width: result.width,
         height: result.height,
@@ -85,6 +133,67 @@ const uploadImage = async (req, res) => {
       success: false,
       message: 'Error al subir la imagen',
       error: error.message
+    });
+  }
+};
+
+/**
+ * POST /api/admin/v2/upload/video
+ * Sube un video y retorna la URL pública
+ */
+const uploadVideo = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se recibió ningún archivo',
+      });
+    }
+
+    if (!isAllowedVideoFile(req.file)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Formato de archivo no válido. Solo se permiten videos compatibles',
+      });
+    }
+
+    const maxSize = 100 * 1024 * 1024; // 100MB
+    if (req.file.size > maxSize) {
+      return res.status(400).json({
+        success: false,
+        message: 'El archivo es demasiado grande. Máximo 100MB',
+      });
+    }
+
+    const result = await uploadService.uploadVideo(req.file);
+    const uploadAsset = await persistUploadRecord({
+      result,
+      sourceType: 'file',
+      originalFilename: req.file.originalname || null,
+      uploadedBy: req.user?._id || null,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Video subido exitosamente',
+      data: {
+        id: uploadAsset._id,
+        url: result.url,
+        publicId: result.publicId || null,
+        mediaType: result.mediaType || 'video',
+        format: result.format,
+        width: result.width,
+        height: result.height,
+        duration: result.duration,
+        size: result.size,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Error uploading video:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al subir el video',
+      error: error.message,
     });
   }
 };
@@ -120,6 +229,7 @@ const importImageFromUrl = async (req, res) => {
         id: uploadAsset._id,
         url: result.url,
         publicId: result.publicId || null,
+        mediaType: result.mediaType || 'image',
         format: result.format,
         width: result.width,
         height: result.height,
@@ -178,6 +288,7 @@ const deleteImage = async (req, res) => {
 
 module.exports = {
   uploadImage,
+  uploadVideo,
   importImageFromUrl,
   deleteImage
 };

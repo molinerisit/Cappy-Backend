@@ -5,6 +5,7 @@
 const { randomUUID } = require('crypto');
 const {
   uploadBufferToCloudinary,
+  uploadBufferToCloudinaryVideo,
   deleteFromCloudinary,
 } = require('../config/cloudinary.config');
 
@@ -65,12 +66,19 @@ const fetchImageBufferFromUrl = async (imageUrl) => {
   return { buffer, contentType };
 };
 
+const inferMediaType = (result) => {
+  const resourceType = (result?.resource_type || '').toLowerCase();
+  return resourceType === 'video' ? 'video' : 'image';
+};
+
 const toUploadResponse = (result, fallbackSize = null) => ({
   url: result.secure_url,
   publicId: result.public_id,
   format: result.format || null,
   width: result.width || null,
   height: result.height || null,
+  duration: result.duration || null,
+  mediaType: inferMediaType(result),
   size: result.bytes || fallbackSize,
 });
 
@@ -98,6 +106,18 @@ const uploadImageFromUrl = async (url) => {
   return toUploadResponse(result, buffer.length);
 };
 
+const uploadVideo = async (file) => {
+  if (!file || !file.buffer) {
+    throw new Error('No se recibio un buffer de video valido');
+  }
+
+  const result = await uploadBufferToCloudinaryVideo(file.buffer, {
+    public_id: `video-${Date.now()}-${randomUUID().slice(0, 8)}`,
+  });
+
+  return toUploadResponse(result, file.size || null);
+};
+
 const deleteImage = async (publicId) => {
   if (!publicId) {
     throw new Error('Se requiere publicId para eliminar una imagen');
@@ -108,5 +128,6 @@ const deleteImage = async (publicId) => {
 module.exports = {
   uploadImage,
   uploadImageFromUrl,
+  uploadVideo,
   deleteImage,
 };

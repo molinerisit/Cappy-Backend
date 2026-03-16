@@ -3,12 +3,14 @@ const app = require('./app');
 const connectDB = require('./config/db');
 const seedTechniques = require('./config/seedTechniques');
 const seedPaths = require('./config/seedPaths');
+const { logCloudinaryStartupStatus } = require('./config/cloudinary.config');
 const { ensureCoreIndexes } = require('./models');
 
 const PORT = process.env.PORT || 5000;
 
 async function startServer() {
   try {
+    logCloudinaryStartupStatus();
     await connectDB();
     await ensureCoreIndexes();
     await seedTechniques();

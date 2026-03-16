@@ -31,7 +31,7 @@ const nodeCardSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ['text', 'list', 'image', 'video', 'animation', 'quiz', 'timer'],
+      enum: ['text', 'list', 'checklist', 'image', 'video', 'animation', 'quiz', 'timer'],
       required: true
     },
     data: { type: mongoose.Schema.Types.Mixed, default: {} }
