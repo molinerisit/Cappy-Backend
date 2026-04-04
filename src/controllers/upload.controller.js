@@ -82,11 +82,13 @@ const persistUploadRecord = async ({
 const uploadImage = async (req, res) => {
   try {
     if (!req.file) {
+      console.warn('[Upload] req.file is undefined — Content-Type:', req.headers['content-type']);
       return res.status(400).json({
         success: false,
         message: 'No se recibió ningún archivo'
       });
     }
+    console.log('[Upload] file received:', req.file.originalname, req.file.mimetype, req.file.size);
 
     // Validar que sea una imagen
     if (!isAllowedImageFile(req.file)) {
@@ -96,12 +98,12 @@ const uploadImage = async (req, res) => {
       });
     }
 
-    // Validar tamaño (máximo 5MB)
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    // Validar tamaño (máximo 15MB — Cloudinary comprime antes de servir)
+    const maxSize = 15 * 1024 * 1024; // 15MB
     if (req.file.size > maxSize) {
       return res.status(400).json({
         success: false,
-        message: 'El archivo es demasiado grande. Máximo 5MB'
+        message: 'El archivo es demasiado grande. Máximo 15MB'
       });
     }
 
@@ -286,9 +288,39 @@ const deleteImage = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/admin/v2/upload/assets
+ * Lista todos los assets subidos (galería de medios)
+ */
+const getAssets = async (req, res) => {
+  try {
+    const { type, search, page = 1, limit = 60 } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const query = {};
+    if (type === 'image') query.format = { $nin: ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'] };
+    if (type === 'video') query.format = { $in: ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'] };
+    if (search) query.originalFilename = { $regex: search, $options: 'i' };
+
+    const [assets, total] = await Promise.all([
+      UploadAsset.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
+      UploadAsset.countDocuments(query),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: { assets, total, page: Number(page), limit: Number(limit) },
+    });
+  } catch (error) {
+    console.error('❌ Error fetching assets:', error);
+    res.status(500).json({ success: false, message: 'Error al obtener assets', error: error.message });
+  }
+};
+
 module.exports = {
   uploadImage,
   uploadVideo,
   importImageFromUrl,
-  deleteImage
+  deleteImage,
+  getAssets,
 };

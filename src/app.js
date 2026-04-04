@@ -45,6 +45,11 @@ const livesRoutes = require('./routes/lives.routes');
 const leaderboardRoutes = require('./routes/leaderboard.routes');
 
 // ========================================
+// CHO AI ASSISTANT ROUTES
+// ========================================
+const { userRouter: choUserRoutes, adminRouter: choAdminRoutes } = require('./routes/cho.routes');
+
+// ========================================
 // UPLOAD ROUTES
 // ========================================
 const uploadRoutes = require('./routes/upload.routes');
@@ -76,7 +81,9 @@ app.use('/api', mainRoutes);
 // ========================================
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/admin', adminLimiter, adminRoutes);
+app.use('/api/admin/cho', choAdminRoutes);
 app.use('/api/admin/v2/upload', uploadRoutes);
+app.use('/api/cho', choUserRoutes);
 app.use('/api/lives', livesRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 

@@ -127,4 +127,16 @@ router.delete(
   uploadController.deleteImage
 );
 
+/**
+ * GET /api/admin/v2/upload/assets
+ * Lista assets subidos (galería de medios)
+ * Query params: type (image|video), search, page, limit
+ */
+router.get(
+  '/assets',
+  authMiddleware,
+  isAdmin,
+  uploadController.getAssets
+);
+
 module.exports = router;

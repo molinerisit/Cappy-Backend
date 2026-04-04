@@ -184,6 +184,7 @@ router.put("/groups/:groupId", adminController.updateGroup);
 router.delete("/groups/:groupId", adminController.deleteGroup);
 
 router.get("/paths/:pathId/nodes", adminController.getNodesByPathV2);
+router.get("/nodes/:nodeId", adminController.getNodeV2);
 router.post("/nodes", adminController.createNodeV2);
 router.put("/nodes/:nodeId", adminController.updateNodeV2);
 router.delete("/nodes/:nodeId", adminController.deleteNodeV2);

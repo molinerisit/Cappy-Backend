@@ -20,7 +20,11 @@ const NODE_TYPES = [
 ];
 
 const NODE_STATUS = ['active', 'draft', 'archived'];
-const CARD_TYPES = ['text', 'list', 'checklist', 'image', 'video', 'animation', 'quiz', 'timer'];
+const CARD_TYPES = [
+  'text', 'list', 'checklist', 'image', 'video', 'animation',
+  'quiz', 'quiz_checklist', 'match_categories', 'timer',
+  'fill-blank', 'recipe_builder', 'cutting_board',
+];
 
 // Helper: Normalize ID to ObjectId
 const normalizeId = (id) => {

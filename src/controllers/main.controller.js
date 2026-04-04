@@ -517,13 +517,7 @@ exports.getPathWithNodes = async (req, res) => {
 
     const [path, totalNodes, nodes] = await Promise.all([
       LearningPath.findById(pathId)
-        .select('_id type title description icon groups')
-        .populate({
-          path: 'groups',
-          match: { isDeleted: false },
-          select: '_id title order',
-          options: { sort: { order: 1 } }
-        })
+        .select('_id type title description icon goalType')
         .lean(),
       LearningNode.countDocuments(baseFilter),
       LearningNode.find(baseFilter)
