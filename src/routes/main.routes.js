@@ -3,7 +3,7 @@ const router = express.Router();
 const mainController = require('../controllers/main.controller');
 const authMiddleware = require('../middleware/auth.middleware');
 const optionalAuth = require('../middleware/optionalAuth.middleware');
-const { publicCatalogLimiter } = require('../middleware/rateLimit.middleware');
+const { publicCatalogLimiter, lessonCompletionLimiter } = require('../middleware/rateLimit.middleware');
 
 const cultureDisabled = (_req, res) => {
 	return res.status(410).json({
@@ -48,7 +48,7 @@ router.get('/ranking', mainController.getGlobalRanking);
 // ========================================
 
 // Complete a node (progression)
-router.post('/nodes/complete', authMiddleware, mainController.completeNode);
+router.post('/nodes/complete', authMiddleware, lessonCompletionLimiter, mainController.completeNode);
 
 // Get user progress for a specific path
 router.get('/paths/:pathId/progress', authMiddleware, mainController.getPathProgress);

@@ -8,7 +8,7 @@ exports.getAllTracks = async (req, res) => {
     const tracks = await Track.find().sort("order");
     res.json(tracks);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -47,6 +47,6 @@ exports.getTrackTree = async (req, res) => {
 
     res.json({ track, tree });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };

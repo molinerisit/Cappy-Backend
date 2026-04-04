@@ -42,7 +42,7 @@ exports.getPaths = async (req, res) => {
 
     res.json(paths);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -56,7 +56,7 @@ exports.getPathById = async (req, res) => {
 
     res.json(path);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -106,6 +106,6 @@ exports.getPathLessons = async (req, res) => {
 
     res.json(payload);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };

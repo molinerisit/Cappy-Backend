@@ -26,7 +26,7 @@ exports.completeLesson = async (req, res) => {
 
     res.json(progress);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -41,7 +41,7 @@ exports.getPathProgress = async (req, res) => {
     const progress = await getOrCreatePathProgress(req.user._id, pathId);
     res.json(progress);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -57,7 +57,7 @@ exports.completePathLesson = async (req, res) => {
     res.json(progress);
   } catch (error) {
     const status = error.statusCode || 500;
-    res.status(status).json({ message: error.message });
+    res.status(status).json({ message: 'Error interno del servidor' });
   }
 };
 
@@ -73,6 +73,6 @@ exports.getProgress = async (req, res) => {
 
     res.json(progress);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };

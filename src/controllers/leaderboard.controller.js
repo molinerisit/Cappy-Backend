@@ -6,12 +6,12 @@ const User = require('../models/user.model');
  */
 exports.getGlobalLeaderboard = async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 30;
-    
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 30, 1), 100);
+
     // Get top users by totalXP
     const topUsers = await User
       .find({})
-      .sort({ totalXP: -1 }) // Sort descending by XP
+      .sort({ totalXP: -1 })
       .limit(limit)
       .select('username email totalXP level streak completedLessonsCount avatarIcon avatarUrl profileImage')
       .lean();
@@ -35,11 +35,11 @@ exports.getGlobalLeaderboard = async (req, res) => {
       count: leaderboard.length,
     });
   } catch (error) {
-    console.error('Error fetching leaderboard:', error);
+    console.error('getGlobalLeaderboard error:', { requestId: req.requestId, error: error.message });
     res.status(500).json({
       success: false,
       message: 'Error al obtener el ranking mundial',
-      error: error.message,
+      error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' },
     });
   }
 };
@@ -86,11 +86,11 @@ exports.getMyRank = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching user rank:', error);
+    console.error('getMyRank error:', { requestId: req.requestId, error: error.message });
     res.status(500).json({
       success: false,
       message: 'Error al obtener tu ranking',
-      error: error.message,
+      error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' },
     });
   }
 };
@@ -164,11 +164,11 @@ exports.getLeaderboardAroundMe = async (req, res) => {
       myRank: myRank,
     });
   } catch (error) {
-    console.error('Error fetching leaderboard around user:', error);
+    console.error('getLeaderboardAroundMe error:', { requestId: req.requestId, error: error.message });
     res.status(500).json({
       success: false,
       message: 'Error al obtener ranking cercano',
-      error: error.message,
+      error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' },
     });
   }
 };

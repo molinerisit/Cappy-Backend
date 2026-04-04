@@ -28,7 +28,7 @@ exports.getInventory = async (req, res) => {
       organized
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -81,7 +81,7 @@ exports.addToInventory = async (req, res) => {
       inventory: userProgress.inventory
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -130,7 +130,7 @@ exports.removeFromInventory = async (req, res) => {
       inventory: userProgress.inventory
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -179,7 +179,7 @@ exports.checkRecipeIngredients = async (req, res) => {
       missingIngredients
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -237,7 +237,7 @@ exports.useIngredientsForRecipe = async (req, res) => {
       remainingInventory: userProgress.inventory
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -258,6 +258,6 @@ exports.clearInventory = async (req, res) => {
 
     res.json({ message: "Inventario limpiado" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };

@@ -4,105 +4,82 @@ const {
   canStartLesson,
   refillAllLives,
   getTimeUntilNextLife,
-} = require("../services/lives.service");
+} = require('../services/lives.service');
 
 /**
  * GET /api/lives/status
- * Get user's current lives and refill info
  */
 exports.getLivesStatus = async (req, res) => {
   try {
     const livesData = await getUserLives(req.user._id);
-
-    res.json({
-      success: true,
-      data: livesData,
-    });
+    return res.json({ success: true, data: livesData });
   } catch (error) {
-    res.status(500).json({
+    console.error('getLivesStatus error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      error: { code: 'INTERNAL_ERROR', message: 'Error al obtener las vidas' },
     });
   }
 };
 
 /**
  * POST /api/lives/lose
- * Lose one life (called when user fails a quiz/question)
  */
 exports.loseLife = async (req, res) => {
   try {
     const livesData = await loseLive(req.user._id);
-
-    // Emit event or log for analytics
-    console.log(
-      `User ${req.user._id} lost a life. Lives remaining: ${livesData.lives}`
-    );
-
-    res.json({
-      success: true,
-      data: livesData,
-    });
+    console.log(`User ${req.user._id} lost a life. Lives remaining: ${livesData.lives}`);
+    return res.json({ success: true, data: livesData });
   } catch (error) {
-    res.status(500).json({
+    console.error('loseLife error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      error: { code: 'INTERNAL_ERROR', message: 'Error al procesar la pérdida de vida' },
     });
   }
 };
 
 /**
  * PUT /api/lives/check-refill
- * Check if lives need to be refilled
  */
 exports.checkRefill = async (req, res) => {
   try {
     const livesData = await getUserLives(req.user._id);
-
-    res.json({
-      success: true,
-      data: livesData,
-    });
+    return res.json({ success: true, data: livesData });
   } catch (error) {
-    res.status(500).json({
+    console.error('checkRefill error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      error: { code: 'INTERNAL_ERROR', message: 'Error al verificar recarga de vidas' },
     });
   }
 };
 
 /**
- * POST /api/lives/refill
- * Refill all lives (admin only or manual refill)
+ * POST /api/lives/refill — Admin only
  */
 exports.refillLives = async (req, res) => {
   try {
-    // Check if admin
-    if (req.user?.role !== "admin") {
-      // Optional: could be called by user with some condition
+    if (req.user?.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: "Unauthorized",
+        error: { code: 'FORBIDDEN', message: 'Acceso solo para administradores' },
       });
     }
 
     const livesData = await refillAllLives(req.user._id);
-
-    res.json({
-      success: true,
-      data: livesData,
-    });
+    return res.json({ success: true, data: livesData });
   } catch (error) {
-    res.status(500).json({
+    console.error('refillLives error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      error: { code: 'INTERNAL_ERROR', message: 'Error al recargar las vidas' },
     });
   }
 };
 
 /**
  * GET /api/lives/can-start-lesson
- * Check if user can start a lesson (has at least 1 life)
  */
 exports.canStartLessonCheck = async (req, res) => {
   try {
@@ -113,40 +90,37 @@ exports.canStartLessonCheck = async (req, res) => {
       return res.json({
         success: true,
         canStart: false,
-        message: "No tienes vidas disponibles",
+        message: 'No tienes vidas disponibles',
         timeUntilNextLife: timeUntilLive,
       });
     }
 
-    res.json({
-      success: true,
-      canStart: true,
-    });
+    return res.json({ success: true, canStart: true });
   } catch (error) {
-    res.status(500).json({
+    console.error('canStartLessonCheck error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      error: { code: 'INTERNAL_ERROR', message: 'Error al verificar disponibilidad' },
     });
   }
 };
 
 /**
  * GET /api/lives/time-until-next
- * Get time remaining until next life refill
  */
 exports.getTimeUntilNextLifeEndpoint = async (req, res) => {
   try {
     const timeRemaining = await getTimeUntilNextLife(req.user._id);
-
-    res.json({
+    return res.json({
       success: true,
       timeRemainingMs: timeRemaining,
-      timeRemainingMinutes: Math.ceil(timeRemaining / 60000),
+      timeRemainingMinutes: Math.ceil(timeRemaining / 60_000),
     });
   } catch (error) {
-    res.status(500).json({
+    console.error('getTimeUntilNextLife error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      error: { code: 'INTERNAL_ERROR', message: 'Error al calcular tiempo restante' },
     });
   }
 };

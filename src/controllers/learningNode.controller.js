@@ -51,7 +51,7 @@ exports.importContent = async (req, res) => {
     }
     res.json({ imported: importedNodes });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 // GET MAP NODES BY COUNTRY (LEGACY - for backward compatibility)
@@ -109,7 +109,7 @@ exports.getCountryMap = async (req, res) => {
       nodes: mapData
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -130,7 +130,7 @@ exports.getNode = async (req, res) => {
 
     res.json(node);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -172,7 +172,7 @@ exports.checkNodeUnlock = async (req, res) => {
       missingNodes
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -282,7 +282,7 @@ exports.completeNode = async (req, res) => {
       }))
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -389,7 +389,7 @@ exports.createNode = async (req, res) => {
 
     res.status(201).json(node);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -412,7 +412,7 @@ exports.updateNode = async (req, res) => {
 
     res.json(node);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -452,7 +452,7 @@ exports.deleteNode = async (req, res) => {
 
     res.json({ message: "Nodo eliminado" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -476,7 +476,7 @@ exports.getNodesByType = async (req, res) => {
 
     res.json(nodes);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -505,6 +505,6 @@ exports.searchNodes = async (req, res) => {
 
     res.json(nodes);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };

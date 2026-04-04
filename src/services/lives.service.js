@@ -1,142 +1,170 @@
-const User = require("../models/user.model");
+const User = require('../models/user.model');
 
-// Constants
-const MAX_LIVES = 3;
-const LIFE_REFILL_INTERVAL = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
-const LIFE_REFILL_HOURS = 2;
+const MAX_LIVES           = 3;
+const LIFE_REFILL_INTERVAL = 2 * 60 * 60 * 1_000; // 2 horas en ms
 
 /**
- * Calculate how many lives a user should have based on time elapsed
- * @param {Date} lastRefillDate - Last time life was refilled
- * @param {Number} currentLives - Current number of lives
- * @returns {Object} { lives, needsUpdate, nextRefillAt }
+ * Calcula las vidas actuales en función del tiempo transcurrido.
+ * Pura — sin side effects.
+ *
+ * @param {Date}   lastRefillDate  Última vez que se recargó una vida
+ * @param {number} currentLives    Vidas actuales en BD
+ * @returns {{ lives, needsUpdate, lastRefillDate?, nextRefillAt? }}
  */
 exports.calculateCurrentLives = (lastRefillDate, currentLives) => {
   if (currentLives >= MAX_LIVES) {
-    return {
-      lives: MAX_LIVES,
-      needsUpdate: false,
-      nextRefillAt: null,
-    };
+    return { lives: MAX_LIVES, needsUpdate: false, nextRefillAt: null };
   }
 
-  const now = new Date();
-  const timeSinceLastRefill = now - lastRefillDate;
-  const livesGained = Math.floor(timeSinceLastRefill / LIFE_REFILL_INTERVAL);
+  const now              = new Date();
+  const timeSinceRefill  = now - lastRefillDate;
+  const livesGained      = Math.floor(timeSinceRefill / LIFE_REFILL_INTERVAL);
 
   if (livesGained === 0) {
-    // Calculate when next life will be available
-    const nextRefillAt = new Date(
-      lastRefillDate.getTime() + LIFE_REFILL_INTERVAL
-    );
     return {
       lives: currentLives,
       needsUpdate: false,
-      nextRefillAt,
+      nextRefillAt: new Date(lastRefillDate.getTime() + LIFE_REFILL_INTERVAL),
     };
   }
 
-  const newLives = Math.min(currentLives + livesGained, MAX_LIVES);
-  const newLastRefillDate = new Date(
+  const newLives         = Math.min(currentLives + livesGained, MAX_LIVES);
+  const newLastRefillAt  = new Date(
     lastRefillDate.getTime() + livesGained * LIFE_REFILL_INTERVAL
   );
 
   return {
-    lives: newLives,
-    needsUpdate: true,
-    lastRefillDate: newLastRefillDate,
-    nextRefillAt:
-      newLives >= MAX_LIVES
-        ? null
-        : new Date(
-            newLastRefillDate.getTime() + LIFE_REFILL_INTERVAL
-          ),
+    lives:         newLives,
+    needsUpdate:   true,
+    lastRefillDate: newLastRefillAt,
+    nextRefillAt:  newLives >= MAX_LIVES
+      ? null
+      : new Date(newLastRefillAt.getTime() + LIFE_REFILL_INTERVAL),
   };
 };
 
 /**
- * Get user's current lives (auto-refill if needed)
+ * Obtiene las vidas actuales del usuario.
+ * Si hay auto-refill disponible, lo aplica con update atómico.
+ *
  * @param {ObjectId} userId
- * @returns {Promise<Object>} { lives, nextRefillAt, lifesLocked }
  */
 exports.getUserLives = async (userId) => {
-  const user = await User.findById(userId);
-
-  if (!user) {
-    throw new Error("User not found");
-  }
+  const user = await User.findById(userId).lean();
+  if (!user) throw new Error('Usuario no encontrado');
 
   const livesData = exports.calculateCurrentLives(
     user.lastLifeRefillAt,
     user.lives
   );
 
-  // Auto-update if needed
   if (livesData.needsUpdate) {
-    user.lives = livesData.lives;
-    user.lastLifeRefillAt = livesData.lastRefillDate;
-    user.lifesLocked = livesData.lives === 0;
-    await user.save();
+    // Actualización atómica — evita race conditions
+    await User.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          lives:              livesData.lives,
+          lastLifeRefillAt:   livesData.lastRefillDate,
+          lifesLocked:        livesData.lives === 0,
+        },
+      }
+    );
   }
 
   return {
-    lives: livesData.lives,
-    nextRefillAt: livesData.nextRefillAt,
-    lifesLocked: livesData.lives === 0,
-    lifesLockedUntil:
-      livesData.lives === 0 && livesData.nextRefillAt
-        ? livesData.nextRefillAt
-        : null,
+    lives:           livesData.lives,
+    nextRefillAt:    livesData.nextRefillAt,
+    lifesLocked:     livesData.lives === 0,
+    lifesLockedUntil: livesData.lives === 0 && livesData.nextRefillAt
+      ? livesData.nextRefillAt
+      : null,
   };
 };
 
 /**
- * Lose one life
+ * Pierde una vida — operación ATÓMICA para prevenir race conditions.
+ *
+ * El problema original: read → calculate → write podía ejecutarse
+ * dos veces en paralelo, gastando 1 vida con 2 requests simultáneos.
+ *
+ * La solución: findOneAndUpdate atómico con condición { lives: { $gt: 0 } }.
+ * MongoDB garantiza que solo UN request puede decrementar si lives > 0.
+ *
  * @param {ObjectId} userId
- * @returns {Promise<Object>} { lives, lifesLocked }
  */
 exports.loseLive = async (userId) => {
-  const user = await User.findById(userId);
+  // Paso 1: Calcular si hay auto-refill disponible (solo lectura)
+  const user = await User.findById(userId).select('lives lastLifeRefillAt').lean();
+  if (!user) throw new Error('Usuario no encontrado');
 
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  // First, calculate current lives (auto-refill)
   const livesData = exports.calculateCurrentLives(
     user.lastLifeRefillAt,
     user.lives
   );
-  let currentLives = livesData.lives;
 
-  // Update if auto-refill happened
-  if (livesData.needsUpdate) {
-    user.lives = livesData.lives;
-    user.lastLifeRefillAt = livesData.lastRefillDate;
+  // Las vidas "reales" en este momento (antes de perder una)
+  const effectiveLives = livesData.lives;
+
+  if (effectiveLives <= 0) {
+    // Ya sin vidas — nada que decrementar
+    return {
+      lives:       0,
+      lifesLocked: true,
+      lifesLockedUntil: livesData.nextRefillAt,
+    };
   }
 
-  // Lose one life
-  if (currentLives > 0) {
-    user.lives -= 1;
-    currentLives = user.lives;
+  // Paso 2: UPDATE ATÓMICO — garantiza exactamente -1 aunque lleguen 100 requests
+  // La condición { lives: { $gt: 0 } } actúa como lock optimista:
+  // si otro request ya decrementó a 0, este update no encuentra el doc
+  // y retorna null → manejamos el caso con gracia.
+  const updated = await User.findOneAndUpdate(
+    {
+      _id:   userId,
+      lives: { $gt: 0 },   // ← Condición atómica: solo si aún hay vidas
+    },
+    {
+      $inc: { lives: -1 },
+      $set: {
+        // Aplicar auto-refill si corresponde (ajustar timestamp)
+        ...(livesData.needsUpdate && {
+          lastLifeRefillAt: livesData.lastRefillDate,
+        }),
+      },
+    },
+    {
+      new:        true,  // Retornar documento DESPUÉS del update
+      projection: { lives: 1, lastLifeRefillAt: 1 },
+    }
+  );
+
+  if (!updated) {
+    // Otro request simultáneo ya gastó la última vida — respuesta segura
+    return {
+      lives:       0,
+      lifesLocked: true,
+      lifesLockedUntil: livesData.nextRefillAt,
+    };
   }
 
-  // Mark as locked if out of lives
-  user.lifesLocked = currentLives === 0;
+  const remainingLives = updated.lives;
 
-  await user.save();
+  // Si quedó en 0, marcar locked en un segundo update (no necesita ser atómico)
+  if (remainingLives === 0) {
+    await User.updateOne({ _id: userId }, { $set: { lifesLocked: true } });
+  }
 
   return {
-    lives: currentLives,
-    lifesLocked: currentLives === 0,
-    lifesLockedUntil: currentLives === 0 ? user.lastLifeRefillAt : null,
+    lives:       remainingLives,
+    lifesLocked: remainingLives === 0,
+    lifesLockedUntil: remainingLives === 0 ? livesData.nextRefillAt : null,
   };
 };
 
 /**
- * Check if user can start a lesson (must have at least 1 life)
+ * ¿Puede el usuario comenzar una lección? (tiene al menos 1 vida)
  * @param {ObjectId} userId
- * @returns {Promise<Boolean>}
  */
 exports.canStartLesson = async (userId) => {
   const livesData = await exports.getUserLives(userId);
@@ -144,52 +172,48 @@ exports.canStartLesson = async (userId) => {
 };
 
 /**
- * Force refill all lives (admin only or when time is up)
+ * Recarga todas las vidas (admin o tiempo cumplido).
  * @param {ObjectId} userId
- * @returns {Promise<Object>} { lives, nextRefillAt }
  */
 exports.refillAllLives = async (userId) => {
-  const user = await User.findById(userId);
+  const updated = await User.findByIdAndUpdate(
+    userId,
+    {
+      $set: {
+        lives:            MAX_LIVES,
+        lastLifeRefillAt: new Date(),
+        lifesLocked:      false,
+      },
+    },
+    { new: true, projection: { lives: 1 } }
+  );
 
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  user.lives = MAX_LIVES;
-  user.lastLifeRefillAt = new Date();
-  user.lifesLocked = false;
-  await user.save();
+  if (!updated) throw new Error('Usuario no encontrado');
 
   return {
-    lives: MAX_LIVES,
+    lives:        MAX_LIVES,
     nextRefillAt: null,
-    lifesLocked: false,
+    lifesLocked:  false,
   };
 };
 
 /**
- * Get time remaining until next life (in milliseconds)
+ * Milisegundos hasta la próxima vida disponible.
  * @param {ObjectId} userId
- * @returns {Promise<Number>} milliseconds until next life, 0 if full lives
+ * @returns {number} ms restantes (0 si ya tiene el máximo)
  */
 exports.getTimeUntilNextLife = async (userId) => {
-  const user = await User.findById(userId);
-
-  if (!user) {
-    throw new Error("User not found");
-  }
+  const user = await User.findById(userId)
+    .select('lives lastLifeRefillAt')
+    .lean();
+  if (!user) throw new Error('Usuario no encontrado');
 
   const livesData = exports.calculateCurrentLives(
     user.lastLifeRefillAt,
     user.lives
   );
 
-  if (!livesData.nextRefillAt) {
-    return 0;
-  }
+  if (!livesData.nextRefillAt) return 0;
 
-  const now = new Date();
-  const timeRemaining = livesData.nextRefillAt - now;
-
-  return Math.max(0, timeRemaining);
+  return Math.max(0, livesData.nextRefillAt - new Date());
 };

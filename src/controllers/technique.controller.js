@@ -22,6 +22,6 @@ exports.getSkillTree = async (req, res) => {
     res.json(tree);
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
