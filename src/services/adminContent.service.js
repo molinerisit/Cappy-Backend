@@ -20,7 +20,11 @@ const NODE_TYPES = [
 ];
 
 const NODE_STATUS = ['active', 'draft', 'archived'];
-const CARD_TYPES = ['text', 'list', 'image', 'video', 'animation', 'quiz', 'timer'];
+const CARD_TYPES = [
+  'text', 'list', 'checklist', 'image', 'video', 'animation',
+  'quiz', 'quiz_checklist', 'match_categories', 'timer',
+  'fill-blank', 'recipe_builder', 'cutting_board',
+];
 
 // Helper: Normalize ID to ObjectId
 const normalizeId = (id) => {
@@ -918,6 +922,14 @@ const updateStep = async (nodeId, stepId, payload) => {
   if (payload?.description !== undefined) step.description = payload.description;
   if (payload?.estimatedTime !== undefined) {
     step.estimatedTime = payload.estimatedTime;
+  }
+  if (payload?.cards !== undefined) {
+    if (!Array.isArray(payload.cards)) {
+      const error = new Error('cards debe ser una lista');
+      error.statusCode = 400;
+      throw error;
+    }
+    step.cards = payload.cards;
   }
 
   await node.save();

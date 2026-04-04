@@ -17,29 +17,26 @@ const isCloudinaryUrl = (value) => {
   }
 };
 
-const resolveRecipeImageUrl = async ({ imageUrl, imageAssetId }) => {
+const resolveMediaUrl = async ({ imageUrl, imageAssetId }) => {
   if (imageUrl) {
-    const normalized = String(imageUrl).trim();
-    if (!isCloudinaryUrl(normalized)) {
-      const error = new Error('imageUrl debe ser una URL HTTPS de Cloudinary');
-      error.statusCode = 400;
-      throw error;
-    }
-    return normalized;
+    return String(imageUrl).trim() || undefined;
   }
+  if (!imageAssetId) return undefined;
+  const asset = await UploadAsset.findById(imageAssetId).select('url').lean();
+  return asset?.url ?? undefined;
+};
 
-  if (!imageAssetId) {
-    return undefined;
-  }
+// Keep old name as alias so existing calls don't break
+const resolveRecipeImageUrl = resolveMediaUrl;
 
-  const uploadAsset = await UploadAsset.findById(imageAssetId).select('url').lean();
-  if (!uploadAsset?.url) {
-    const error = new Error('No se encontró el asset de imagen');
-    error.statusCode = 404;
-    throw error;
-  }
-
-  return uploadAsset.url;
+// Auto-fill id and order on steps that are missing them
+const normalizeSteps = (steps) => {
+  if (!Array.isArray(steps)) return [];
+  return steps.map((s, i) => ({
+    ...s,
+    id: s.id || `step_${i + 1}`,
+    order: s.order ?? i + 1,
+  }));
 };
 
 // ==============================
@@ -229,6 +226,7 @@ exports.createRecipe = async (req, res) => {
       title,
       description,
       imageUrl,
+      videoUrl,
       imageAssetId,
       difficulty,
       xpReward,
@@ -246,24 +244,23 @@ exports.createRecipe = async (req, res) => {
       isPremium
     } = req.body;
 
-    if (!countryId || !title || !steps || steps.length === 0) {
-      return res.status(400).json({ 
-        message: "countryId, title, y pasos son obligatorios" 
-      });
+    if (!countryId || !title) {
+      return res.status(400).json({ message: 'countryId y title son obligatorios' });
     }
 
     const country = await Country.findById(countryId);
     if (!country) {
-      return res.status(404).json({ message: "País no encontrado" });
+      return res.status(404).json({ message: 'País no encontrado' });
     }
 
-    const resolvedImageUrl = await resolveRecipeImageUrl({ imageUrl, imageAssetId });
+    const resolvedImageUrl = await resolveMediaUrl({ imageUrl, imageAssetId });
 
     const recipe = await Recipe.create({
       countryId,
       title,
       description,
       imageUrl: resolvedImageUrl,
+      videoUrl: videoUrl || undefined,
       difficulty: difficulty || 2,
       xpReward: xpReward || 50,
       servings,
@@ -271,7 +268,7 @@ exports.createRecipe = async (req, res) => {
       cookTime,
       ingredients: ingredients || [],
       tools: tools || [],
-      steps,
+      steps: normalizeSteps(steps),
       requiredSkills: requiredSkills || [],
       requiredRecipes: requiredRecipes || [],
       nutrition: nutrition || {},
@@ -294,13 +291,17 @@ exports.updateRecipe = async (req, res) => {
     const { recipeId } = req.params;
     const updates = { ...req.body };
 
-    if (updates.imageUrl || updates.imageAssetId) {
-      updates.imageUrl = await resolveRecipeImageUrl({
+    if (updates.imageUrl !== undefined || updates.imageAssetId) {
+      updates.imageUrl = await resolveMediaUrl({
         imageUrl: updates.imageUrl,
         imageAssetId: updates.imageAssetId,
       });
     }
     delete updates.imageAssetId;
+
+    if (updates.steps) {
+      updates.steps = normalizeSteps(updates.steps);
+    }
 
     const recipe = await Recipe.findByIdAndUpdate(recipeId, updates, {
       new: true,

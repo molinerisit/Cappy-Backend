@@ -17,6 +17,17 @@ const sendError = (res, error) => {
 // ADMIN CONTENT V2 (Groups + Nodes)
 // =====================================================
 
+exports.getNodeV2 = async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const node = await LearningNode.findById(nodeId);
+    if (!node) return res.status(404).json({ message: 'Nodo no encontrado' });
+    res.json({ node });
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
 exports.getGroupsByPath = async (req, res) => {
   try {
     const { pathId } = req.params;

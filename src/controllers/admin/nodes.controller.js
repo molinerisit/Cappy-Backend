@@ -1,6 +1,7 @@
 const legacyAdminController = require('./legacy.controller');
 
 module.exports = {
+  getNodeV2: legacyAdminController.getNodeV2,
   getGroupsByPath: legacyAdminController.getGroupsByPath,
   createGroup: legacyAdminController.createGroup,
   updateGroup: legacyAdminController.updateGroup,

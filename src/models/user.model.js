@@ -39,6 +39,10 @@ const userSchema = new mongoose.Schema(
     // Current learning path (like Duolingo's course selection)
     currentPathId: { type: mongoose.Schema.Types.ObjectId, ref: "LearningPath", default: null },
 
+    // Premium subscription
+    isPremium: { type: Boolean, default: false },
+    premiumSince: { type: Date, default: null },
+
     // Security: Password management
     forcePasswordChange: { type: Boolean, default: false }, // Fuerza cambio de contraseña en primer login
     passwordChangedAt: { type: Date, default: null }, // Última vez que usuario cambió su contraseña

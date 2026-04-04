@@ -31,7 +31,11 @@ const nodeCardSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ['text', 'list', 'image', 'video', 'animation', 'quiz', 'timer'],
+      enum: [
+        'text', 'list', 'checklist', 'image', 'video', 'animation',
+        'quiz', 'quiz_checklist', 'match_categories', 'timer',
+        'fill-blank', 'recipe_builder', 'cutting_board',
+      ],
       required: true
     },
     data: { type: mongoose.Schema.Types.Mixed, default: {} }
@@ -56,8 +60,9 @@ const nodeStepSchema = new mongoose.Schema(
     video: String,
     animationUrl: String,
     question: String,
-    options: [String],
+    options: [{ text: String, correct: Boolean }],
     correctAnswer: String,
+    multiSelect: { type: Boolean, default: false },
     checklist: [{ item: String, required: Boolean }],
     validationLogic: mongoose.Schema.Types.Mixed,
     feedback: String,

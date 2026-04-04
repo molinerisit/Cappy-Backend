@@ -1,20 +1,21 @@
 const mongoose = require('mongoose');
 
 const recipeStepSchema = new mongoose.Schema({
-  id: { type: String, required: true },
-  order: { type: Number, required: true },
+  id: { type: String },
+  order: { type: Number },
   title: { type: String, required: true },
-  instruction: { type: String, required: true },
+  instruction: { type: String, default: '' },
   imageUrl: { type: String },
+  videoUrl: { type: String },
   animationUrl: { type: String },
-  validationLogic: { type: String }, // JSON string with validation rules
+  validationLogic: { type: String },
   feedback: {
     correct: { type: String },
     incorrect: { type: String }
   },
   requiredTools: [String],
   requiredIngredients: [String],
-  duration: { type: Number } // in seconds
+  duration: { type: Number }
 }, { _id: false });
 
 const recipeSchema = new mongoose.Schema({
@@ -27,7 +28,8 @@ const recipeSchema = new mongoose.Schema({
   prepTime: { type: Number }, // minutes
   cookTime: { type: Number }, // minutes
   imageUrl: { type: String },
-  
+  videoUrl: { type: String },
+
   ingredients: [{
     name: { type: String, required: true },
     quantity: { type: String },
