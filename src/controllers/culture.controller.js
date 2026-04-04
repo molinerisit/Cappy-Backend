@@ -10,7 +10,7 @@ exports.getCultureTree = async (req, res) => {
     // TODO: Formatear árbol visual
     res.json(nodes);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -21,7 +21,7 @@ exports.getCultureNode = async (req, res) => {
     if (!node) return res.status(404).json({ message: 'Nodo no encontrado' });
     res.json(node);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -31,7 +31,7 @@ exports.getCultureSteps = async (req, res) => {
     const steps = await CultureStep.find({ cultureNodeId: nodeId });
     res.json(steps);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -41,7 +41,7 @@ exports.completeCultureNode = async (req, res) => {
     // TODO: Actualizar UserProgress, sumar XP, desbloqueo
     res.json({ message: 'Nodo cultural completado' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -50,7 +50,7 @@ exports.completeCultureStep = async (req, res) => {
     // TODO: Actualizar UserProgress, sumar XP, desbloqueo
     res.json({ message: 'Micropaso cultural completado' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -60,7 +60,7 @@ exports.createCultureNode = async (req, res) => {
     const node = await CultureNode.create(req.body);
     res.status(201).json(node);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -72,7 +72,7 @@ exports.updateCultureNode = async (req, res) => {
     if (!node) return res.status(404).json({ message: 'Nodo no encontrado' });
     res.json(node);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -83,7 +83,7 @@ exports.deleteCultureNode = async (req, res) => {
     if (!node) return res.status(404).json({ message: 'Nodo no encontrado' });
     res.json({ message: 'Nodo eliminado' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -92,7 +92,7 @@ exports.createCultureStep = async (req, res) => {
     const step = await CultureStep.create(req.body);
     res.status(201).json(step);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -104,7 +104,7 @@ exports.updateCultureStep = async (req, res) => {
     if (!step) return res.status(404).json({ message: 'Micropaso no encontrado' });
     res.json(step);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -115,6 +115,6 @@ exports.deleteCultureStep = async (req, res) => {
     if (!step) return res.status(404).json({ message: 'Micropaso no encontrado' });
     res.json({ message: 'Micropaso eliminado' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };

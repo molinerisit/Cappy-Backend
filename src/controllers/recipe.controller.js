@@ -55,7 +55,7 @@ exports.getRecipesByCountry = async (req, res) => {
 
     res.json(recipes);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -76,7 +76,7 @@ exports.getRecipe = async (req, res) => {
 
     res.json(recipe);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -92,7 +92,7 @@ exports.getAllRecipes = async (req, res) => {
 
     res.json(recipes);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -143,7 +143,7 @@ exports.checkRecipeUnlock = async (req, res) => {
       )
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -212,7 +212,7 @@ exports.completeRecipe = async (req, res) => {
       totalXP: user?.totalXP || 0,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -279,7 +279,7 @@ exports.createRecipe = async (req, res) => {
 
     res.status(201).json(recipe);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -314,7 +314,7 @@ exports.updateRecipe = async (req, res) => {
 
     res.json(recipe);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -332,6 +332,6 @@ exports.deleteRecipe = async (req, res) => {
 
     res.json({ message: "Receta eliminada" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };

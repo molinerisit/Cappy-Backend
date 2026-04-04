@@ -1,7 +1,8 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const livesController = require("../controllers/lives.controller");
-const authMiddleware = require("../middleware/auth.middleware");
+const livesController = require('../controllers/lives.controller');
+const authMiddleware = require('../middleware/auth.middleware');
+const { livesLimiter } = require('../middleware/rateLimit.middleware');
 
 // Admin middleware inline
 const isAdminMiddleware = (req, res, next) => {
@@ -27,7 +28,7 @@ router.get("/can-start-lesson", livesController.canStartLessonCheck);
 router.get("/time-until-next", livesController.getTimeUntilNextLifeEndpoint);
 
 // Lose a life (called when user fails a question)
-router.post("/lose", livesController.loseLife);
+router.post('/lose', livesLimiter, livesController.loseLife);
 
 // Check and auto-refill if needed
 router.put("/check-refill", livesController.checkRefill);

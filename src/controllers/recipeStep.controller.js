@@ -8,7 +8,7 @@ exports.getStepsByRecipe = async (req, res) => {
     const steps = await RecipeStep.find({ recipeId }).sort({ order: 1 });
     res.json(steps);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -23,7 +23,7 @@ exports.completeStep = async (req, res) => {
     // TODO: Actualizar UserProgress para receta
     res.json({ message: 'Micropaso completado' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -33,7 +33,7 @@ exports.createStep = async (req, res) => {
     const step = await RecipeStep.create(req.body);
     res.status(201).json(step);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -46,7 +46,7 @@ exports.updateStep = async (req, res) => {
     if (!step) return res.status(404).json({ message: 'Paso no encontrado' });
     res.json(step);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -58,6 +58,6 @@ exports.deleteStep = async (req, res) => {
     if (!step) return res.status(404).json({ message: 'Paso no encontrado' });
     res.json({ message: 'Paso eliminado' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };

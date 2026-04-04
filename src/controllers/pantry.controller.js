@@ -5,7 +5,7 @@ exports.getPantry = async (req, res) => {
     const ingredients = await Ingredient.find({ user: req.user._id });
     res.json(ingredients);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -24,7 +24,7 @@ exports.addIngredient = async (req, res) => {
 
     res.status(201).json(ingredient);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -41,6 +41,6 @@ exports.deleteIngredient = async (req, res) => {
 
     res.json({ message: 'Ingredient removed' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };

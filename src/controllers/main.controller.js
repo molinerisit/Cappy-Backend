@@ -210,7 +210,8 @@ exports.getAllCountries = async (req, res) => {
     }
     res.json(response);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('main.controller error:', { requestId: req.requestId, error: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -348,7 +349,8 @@ exports.getCountryHub = async (req, res) => {
 
     res.json(response);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('main.controller error:', { requestId: req.requestId, error: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -365,7 +367,8 @@ exports.getRecipesByCountry = async (req, res) => {
 
     res.json(recipes);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('main.controller error:', { requestId: req.requestId, error: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -402,7 +405,8 @@ exports.getRecipeDetail = async (req, res) => {
       node: node || null
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('main.controller error:', { requestId: req.requestId, error: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -493,7 +497,8 @@ exports.getGoalPaths = async (req, res) => {
 
     res.json(payload);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('main.controller error:', { requestId: req.requestId, error: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -564,7 +569,8 @@ exports.getPathWithNodes = async (req, res) => {
 
     res.json(response);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('main.controller error:', { requestId: req.requestId, error: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -646,7 +652,8 @@ exports.completeNode = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('main.controller error:', { requestId: req.requestId, error: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -670,7 +677,8 @@ exports.getPathProgress = async (req, res) => {
 
     res.json(progress);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('main.controller error:', { requestId: req.requestId, error: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -679,15 +687,16 @@ exports.getPathProgress = async (req, res) => {
 // ========================================
 exports.getGlobalRanking = async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 50;
-    
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
+
     const ranking = await User.find()
-      .select('name totalXP level')
+      .select('username totalXP level')
       .sort('-totalXP')
       .limit(limit);
 
     res.json(ranking);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('main.controller error:', { requestId: req.requestId, error: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };

@@ -51,4 +51,10 @@ const userSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// ── Índices ───────────────────────────────────────────────────
+// Leaderboard queries: sort by totalXP descending — crítico para performance
+userSchema.index({ totalXP: -1 });
+// Buscar usuarios por email (login) — el unique en el campo crea uno, pero explícito = más claro
+userSchema.index({ email: 1 });
+
 module.exports = mongoose.model("User", userSchema);

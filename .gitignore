@@ -44,3 +44,4 @@ test/.mongodb-binaries/
 
 # local uploads (serve from cloud in prod)
 uploads/
+.vercel

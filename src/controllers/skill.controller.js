@@ -25,7 +25,7 @@ exports.getSkillTree = async (req, res) => {
 
     res.json(tree);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -47,7 +47,7 @@ exports.getSkill = async (req, res) => {
 
     res.json(skill);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -87,7 +87,7 @@ exports.checkSkillUnlock = async (req, res) => {
       canLearn: prerequisiteMet && !isLearned
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -141,7 +141,7 @@ exports.learnSkill = async (req, res) => {
       level: userProgress.level
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -187,7 +187,7 @@ exports.updateSkillProgress = async (req, res) => {
       progress
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -253,7 +253,7 @@ exports.createSkill = async (req, res) => {
 
     res.status(201).json(skill);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -276,7 +276,7 @@ exports.updateSkill = async (req, res) => {
 
     res.json(skill);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -300,6 +300,6 @@ exports.deleteSkill = async (req, res) => {
 
     res.json({ message: "Habilidad eliminada" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };

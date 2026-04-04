@@ -1,213 +1,168 @@
-const User = require('../models/user.model');
+const mongoose = require('mongoose');
+const User         = require('../models/user.model');
 const LearningPath = require('../models/LearningPath.model');
 const UserProgress = require('../models/UserProgress.model');
-const UploadAsset = require('../models/UploadAsset.model');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+const UploadAsset  = require('../models/UploadAsset.model');
+const bcrypt       = require('bcrypt');
+const jwt          = require('jsonwebtoken');
 
 const ALLOWED_AVATAR_ICONS = new Set([
-  '👨‍🍳',
-  '👩‍🍳',
-  '🧑‍🍳',
-  '🍳',
-  '🥘',
-  '🍜',
-  '🍕',
-  '🥗',
-  '🌮',
-  '🧁',
-  '🍣',
-  '🥐',
+  '👨‍🍳', '👩‍🍳', '🧑‍🍳', '🍳', '🥘',
+  '🍜', '🍕', '🥗', '🌮', '🧁', '🍣', '🥐',
 ]);
 
 const isCloudinaryUrl = (value) => {
   try {
     const parsed = new URL(String(value || '').trim());
     return parsed.protocol === 'https:' && parsed.hostname === 'res.cloudinary.com';
-  } catch (_error) {
+  } catch {
     return false;
   }
 };
 
+// ─────────────────────────────────────────────────────────────
+// REGISTER
+// ─────────────────────────────────────────────────────────────
 exports.register = async (req, res) => {
   try {
-    // ✅ validatedBody viene del middleware validate(registerSchema)
     const { email, password } = req.validatedBody;
 
-    // 1️⃣ Verificar que usuario no exista
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email }).lean();
     if (existingUser) {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
         error: {
           code: 'USER_ALREADY_EXISTS',
-          message: 'El usuario ya existe con este email'
-        }
+          message: 'Ya existe una cuenta con este email',
+        },
       });
     }
 
-    // 2️⃣ Hash de contraseña segura (12 rounds)
     const hashedPassword = await bcrypt.hash(password, 12);
-
-    // 3️⃣ Crear usuario
     const user = await User.create({
       email,
       password: hashedPassword,
-      role: 'user',
-      verified: false, // Requiere verificación de email
+      role:     'user',
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: 'Usuario creado exitosamente',
-      user: {
-        id: user._id,
-        email: user.email,
-        role: user.role,
-      }
+      message: 'Cuenta creada exitosamente',
+      user: { id: user._id, email: user.email, role: user.role },
     });
 
   } catch (error) {
-    console.error('❌ Error en register:', error);
-    res.status(500).json({
+    console.error('register error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
       success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Error al crear usuario'
-      }
+      error: { code: 'INTERNAL_ERROR', message: 'Error al crear la cuenta' },
     });
   }
 };
 
+// ─────────────────────────────────────────────────────────────
+// LOGIN
+// ─────────────────────────────────────────────────────────────
 exports.login = async (req, res) => {
   try {
-    // ✅ validatedBody viene del middleware validate(loginSchema)
     const { email, password } = req.validatedBody;
 
-    // 1️⃣ Buscar usuario
+    // Siempre el mismo mensaje para user-not-found y wrong-password
+    // (previene user enumeration)
+    const INVALID_MSG = 'Email o contraseña incorrectos';
+
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: {
-          code: 'INVALID_CREDENTIALS',
-          message: 'Email o contraseña incorrect a'
-        }
+        error: { code: 'INVALID_CREDENTIALS', message: INVALID_MSG },
       });
     }
 
-    // 2️⃣ Validar contraseña
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        error: {
-          code: 'INVALID_CREDENTIALS',
-          message: 'Email o contraseña incorrecta'
-        }
+        error: { code: 'INVALID_CREDENTIALS', message: INVALID_MSG },
       });
     }
 
-    // 3️⃣ Generar JWT
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    // 4️⃣ Respuesta con flags de seguridad
-    const response = {
+    return res.json({
       success: true,
       token,
       user: {
-        id: user._id,
-        email: user.email,
-        role: user.role,
+        id:                  user._id,
+        email:               user.email,
+        role:                user.role,
         forcePasswordChange: user.forcePasswordChange || false,
-        isTempPassword: user.isTempPassword || false,
-      }
-    };
-
-    res.json(response);
+        isTempPassword:      user.isTempPassword      || false,
+      },
+    });
 
   } catch (error) {
-    console.error('❌ Error en login:', error);
-    res.status(500).json({
+    console.error('login error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
       success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Error al iniciar sesión'
-      }
+      error: { code: 'INTERNAL_ERROR', message: 'Error al iniciar sesión' },
     });
   }
 };
 
+// ─────────────────────────────────────────────────────────────
+// GET PROFILE
+// ─────────────────────────────────────────────────────────────
 exports.getProfile = async (req, res) => {
   try {
-    const { 
-      _id, 
-      email, 
-      role, 
-      username,
-      avatarIcon,
-      avatarUrl,
-      totalXP, 
-      level, 
-      streak, 
-      completedLessonsCount,
-      skillLevel, 
-      dietType, 
-      timePreference,
-      currentPathId,
-      lives,
-      lifesLocked
+    const {
+      _id, email, role, username, avatarIcon, avatarUrl,
+      totalXP, level, streak, completedLessonsCount,
+      skillLevel, dietType, timePreference, currentPathId,
+      lives, lifesLocked,
     } = req.user;
 
     let currentPathTitle = null;
     if (currentPathId) {
-      const currentPath = await LearningPath.findById(currentPathId)
+      const path = await LearningPath.findById(currentPathId)
         .select('title')
         .lean();
-      currentPathTitle = currentPath?.title || null;
+      currentPathTitle = path?.title ?? null;
     }
 
-    res.json({
-      id: _id,
-      email,
-      role,
-      username,
-      avatarIcon,
-      avatarUrl,
-      totalXP,
-      level,
-      streak,
-      completedLessonsCount,
-      skillLevel,
-      dietType,
-      timePreference,
-      currentPathId,
-      currentPathTitle,
-      lives,
-      lifesLocked,
+    return res.json({
+      id: _id, email, role, username, avatarIcon, avatarUrl,
+      totalXP, level, streak, completedLessonsCount,
+      skillLevel, dietType, timePreference,
+      currentPathId, currentPathTitle, lives, lifesLocked,
     });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('getProfile error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Error al obtener el perfil' },
+    });
   }
 };
 
+// ─────────────────────────────────────────────────────────────
+// GET PROFILE ANALYTICS
+// ─────────────────────────────────────────────────────────────
 exports.getProfileAnalytics = async (req, res) => {
   try {
     const {
-      totalXP = 0,
-      level = 1,
-      streak = 0,
-      completedLessonsCount = 0,
-      lastLessonDate = null,
+      totalXP = 0, level = 1, streak = 0,
+      completedLessonsCount = 0, lastLessonDate = null,
     } = req.user;
 
-    const xpInLevel = totalXP % 100;
-    const xpToNextLevel = Math.max(0, 100 - xpInLevel);
-    const weeklyGoalDays = 7;
+    const xpInLevel        = totalXP % 100;
+    const xpToNextLevel    = Math.max(0, 100 - xpInLevel);
+    const weeklyGoalDays   = 7;
 
     const todayUtc = new Date();
     todayUtc.setUTCHours(0, 0, 0, 0);
@@ -217,11 +172,7 @@ exports.getProfileAnalytics = async (req, res) => {
     const activityAgg = await UserProgress.aggregate([
       { $match: { userId: req.user._id } },
       { $unwind: '$completedNodes' },
-      {
-        $match: {
-          'completedNodes.completedAt': { $gte: weekStartUtc },
-        },
-      },
+      { $match: { 'completedNodes.completedAt': { $gte: weekStartUtc } } },
       {
         $group: {
           _id: {
@@ -237,64 +188,59 @@ exports.getProfileAnalytics = async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
 
-    const activityByDate = new Map(
-      activityAgg.map((item) => [item._id, item.completions])
-    );
+    const activityByDate = new Map(activityAgg.map((i) => [i._id, i.completions]));
 
     const dayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-    const activityLast7Days = [];
     let activeDays = 0;
+    const activityLast7Days = [];
 
-    for (let i = 0; i < weeklyGoalDays; i += 1) {
+    for (let i = 0; i < weeklyGoalDays; i++) {
       const day = new Date(weekStartUtc);
       day.setUTCDate(weekStartUtc.getUTCDate() + i);
-
-      const isoDate = day.toISOString().slice(0, 10);
+      const isoDate    = day.toISOString().slice(0, 10);
       const completions = activityByDate.get(isoDate) || 0;
-      const active = completions > 0;
-      if (active) activeDays += 1;
-
+      if (completions > 0) activeDays++;
       activityLast7Days.push({
-        date: isoDate,
-        label: dayLabels[(day.getUTCDay() + 6) % 7],
+        date:        isoDate,
+        label:       dayLabels[(day.getUTCDay() + 6) % 7],
         completions,
-        active,
+        active:      completions > 0,
       });
     }
 
-    const weeklyConsistency = activeDays / weeklyGoalDays;
-    const avgXpPerLesson = completedLessonsCount > 0
-      ? Math.round(totalXP / completedLessonsCount)
-      : 0;
-    const masteryScore = Math.max(
-      0,
-      Math.min(100, (level * 8) + (streak * 3))
-    );
-
     return res.json({
-      xpInLevel,
-      xpToNextLevel,
-      weeklyGoalDays,
+      xpInLevel, xpToNextLevel, weeklyGoalDays,
       weeklyGoalProgressDays: activeDays,
-      weeklyConsistency,
+      weeklyConsistency:      activeDays / weeklyGoalDays,
       activityLast7Days,
-      avgXpPerLesson,
-      masteryScore,
-      streak,
-      completedLessonsCount,
-      generatedAt: new Date().toISOString(),
+      avgXpPerLesson: completedLessonsCount > 0
+        ? Math.round(totalXP / completedLessonsCount) : 0,
+      masteryScore:   Math.max(0, Math.min(100, (level * 8) + (streak * 3))),
+      streak, completedLessonsCount,
+      generatedAt:  new Date().toISOString(),
       lastLessonDate,
     });
+
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('getProfileAnalytics error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Error al calcular métricas' },
+    });
   }
 };
 
+// ─────────────────────────────────────────────────────────────
+// UPDATE PROFILE
+// ─────────────────────────────────────────────────────────────
 exports.updateProfile = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId  = req.user?._id;
     if (!userId) {
-      return res.status(401).json({ message: 'No autorizado' });
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'No autorizado' },
+      });
     }
 
     const updates = {};
@@ -303,226 +249,228 @@ exports.updateProfile = async (req, res) => {
       const username = String(req.body.username || '').trim();
       if (username.length < 3 || username.length > 24) {
         return res.status(400).json({
-          message: 'El nickname debe tener entre 3 y 24 caracteres',
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'El nickname debe tener entre 3 y 24 caracteres' },
         });
       }
       updates.username = username;
     }
 
     if (req.body.avatarIcon !== undefined) {
-      const avatarIcon = String(req.body.avatarIcon || '').trim();
-      if (!ALLOWED_AVATAR_ICONS.has(avatarIcon)) {
+      const icon = String(req.body.avatarIcon || '').trim();
+      if (!ALLOWED_AVATAR_ICONS.has(icon)) {
         return res.status(400).json({
-          message: 'Ícono de avatar no permitido',
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'Ícono de avatar no permitido' },
         });
       }
-      updates.avatarIcon = avatarIcon;
+      updates.avatarIcon = icon;
     }
 
     if (req.body.avatarUrl !== undefined || req.body.avatarAssetId !== undefined) {
       let avatarUrl = req.body.avatarUrl;
 
       if (!avatarUrl && req.body.avatarAssetId) {
-        const uploadAsset = await UploadAsset.findById(req.body.avatarAssetId)
-          .select('url')
-          .lean();
-        if (!uploadAsset?.url) {
+        const asset = await UploadAsset.findById(req.body.avatarAssetId)
+          .select('url').lean();
+        if (!asset?.url) {
           return res.status(404).json({
-            message: 'No se encontró el asset de avatar',
+            success: false,
+            error: { code: 'NOT_FOUND', message: 'Asset de avatar no encontrado' },
           });
         }
-        avatarUrl = uploadAsset.url;
+        avatarUrl = asset.url;
       }
 
       if (avatarUrl === null || avatarUrl === '') {
         updates.avatarUrl = null;
       } else {
-        const normalizedAvatarUrl = String(avatarUrl).trim();
-        if (!isCloudinaryUrl(normalizedAvatarUrl)) {
+        const normalized = String(avatarUrl).trim();
+        if (!isCloudinaryUrl(normalized)) {
           return res.status(400).json({
-            message: 'avatarUrl debe ser una URL HTTPS de Cloudinary',
+            success: false,
+            error: { code: 'VALIDATION_ERROR', message: 'avatarUrl debe ser una URL HTTPS de Cloudinary' },
           });
         }
-        updates.avatarUrl = normalizedAvatarUrl;
+        updates.avatarUrl = normalized;
       }
     }
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({
-        message: 'No hay campos válidos para actualizar',
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'No hay campos válidos para actualizar' },
       });
     }
 
     const user = await User.findByIdAndUpdate(userId, updates, {
-      new: true,
-      runValidators: true,
+      new: true, runValidators: true,
     });
 
     if (!user) {
-      return res.status(404).json({ message: 'Usuario no encontrado' });
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Usuario no encontrado' },
+      });
     }
 
     return res.json({
-      id: user._id,
-      username: user.username,
-      avatarIcon: user.avatarIcon,
-      avatarUrl: user.avatarUrl,
-      email: user.email,
-      totalXP: user.totalXP,
-      level: user.level,
-      streak: user.streak,
-      completedLessonsCount: user.completedLessonsCount,
+      id: user._id, username: user.username, avatarIcon: user.avatarIcon,
+      avatarUrl: user.avatarUrl, email: user.email,
+      totalXP: user.totalXP, level: user.level,
+      streak: user.streak, completedLessonsCount: user.completedLessonsCount,
     });
+
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('updateProfile error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Error al actualizar el perfil' },
+    });
   }
 };
 
-/**
- * Change current learning path (like Duolingo course selection)
- * POST /api/auth/change-path
- */
+// ─────────────────────────────────────────────────────────────
+// CHANGE CURRENT PATH
+// Fix IDOR: validar que pathId sea ObjectId válido y que el path
+// exista, esté activo y sea accesible para el usuario
+// ─────────────────────────────────────────────────────────────
 exports.changeCurrentPath = async (req, res) => {
   try {
     const userId = req.user._id;
     const { pathId } = req.body;
 
-    if (!pathId) {
+    // 1. Validar que pathId sea un ObjectId válido
+    if (!pathId || !mongoose.Types.ObjectId.isValid(pathId)) {
       return res.status(400).json({
         success: false,
-        message: 'pathId es requerido',
+        error: { code: 'VALIDATION_ERROR', message: 'pathId inválido' },
       });
     }
 
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { currentPathId: pathId },
-      { new: true }
-    ).populate('currentPathId', 'title description');
+    // 2. Verificar que el path existe, está activo y el usuario puede accederlo
+    const path = await LearningPath.findOne({
+      _id:      pathId,
+      isActive: true,
+    }).select('_id title isPremium').lean();
 
-    if (!user) {
+    if (!path) {
       return res.status(404).json({
         success: false,
-        message: 'Usuario no encontrado',
+        error: { code: 'NOT_FOUND', message: 'Camino de aprendizaje no encontrado' },
       });
     }
 
-    res.status(200).json({
+    // 3. Verificar acceso premium
+    if (path.isPremium && !req.user.isPremium) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'PREMIUM_REQUIRED',
+          message: 'Este camino requiere una cuenta premium',
+        },
+      });
+    }
+
+    // 4. Actualizar el path actual del usuario
+    await User.updateOne({ _id: userId }, { $set: { currentPathId: pathId } });
+
+    return res.json({
       success: true,
-      message: 'Camino de aprendizaje cambiado',
-      currentPathId: user.currentPathId,
+      message: 'Camino de aprendizaje actualizado',
+      currentPathId:    path._id,
+      currentPathTitle: path.title,
     });
+
   } catch (error) {
-    console.error('Error changing path:', error);
-    res.status(500).json({
+    console.error('changeCurrentPath error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
       success: false,
-      message: 'Error al cambiar el camino de aprendizaje',
-      error: error.message,
+      error: { code: 'INTERNAL_ERROR', message: 'Error al cambiar el camino de aprendizaje' },
     });
   }
 };
 
-/**
- * 🔐 Cambiar contraseña (obligatorio en primer login si es admin)
- * PATCH /api/auth/change-password
- * 
- * Body: { currentPassword, newPassword, confirmPassword }
- * - Si usuario es admin con forcePasswordChange=true, puede saltarse currentPassword
- * - Valida que nueva contraseña sea suficientemente fuerte (Joi + zxcvbn)
- * - Actualiza passwordChangedAt y desactiva forcePasswordChange
- */
+// ─────────────────────────────────────────────────────────────
+// CHANGE PASSWORD
+// ─────────────────────────────────────────────────────────────
 exports.changePassword = async (req, res) => {
   try {
     const userId = req.user?._id;
     if (!userId) {
       return res.status(401).json({
         success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Usuario no identificado' }
+        error: { code: 'UNAUTHORIZED', message: 'Usuario no identificado' },
       });
     }
 
-    // ✅ validatedBody viene del middleware validate(changePasswordSchema)
     const { currentPassword, newPassword } = req.validatedBody;
 
-    // 1️⃣ Obtener usuario actual
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
-        error: { code: 'USER_NOT_FOUND', message: 'Usuario no encontrado' }
+        error: { code: 'NOT_FOUND', message: 'Usuario no encontrado' },
       });
     }
 
-    // 2️⃣ Para usuarios con contraseña normal, currentPassword es obligatoria
     if (!user.isTempPassword && !currentPassword) {
       return res.status(400).json({
         success: false,
-        error: {
-          code: 'CURRENT_PASSWORD_REQUIRED',
-          message: 'Debe proporcionar la contraseña actual'
-        }
+        error: { code: 'CURRENT_PASSWORD_REQUIRED', message: 'Debe proporcionar la contraseña actual' },
       });
     }
 
-    // 3️⃣ Validar contraseña actual (si NO es primer login con temp password)
     if (!user.isTempPassword) {
       const isMatch = await bcrypt.compare(currentPassword, user.password);
       if (!isMatch) {
         return res.status(401).json({
           success: false,
-          error: {
-            code: 'INVALID_PASSWORD',
-            message: 'Contraseña actual incorrecta'
-          }
+          error: { code: 'INVALID_PASSWORD', message: 'Contraseña actual incorrecta' },
         });
       }
     }
 
-    // 4️⃣ Hashear nueva contraseña (12 rounds)
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
-    // 5️⃣ Actualizar usuario:
-    // - Nueva contraseña hasheada
-    // - Marcar que cambió contraseña
-    // - Desactivar forcePasswordChange y isTempPassword
-    const updatedUser = await User.findByIdAndUpdate(
+    const updated = await User.findByIdAndUpdate(
       userId,
       {
-        password: hashedPassword,
-        passwordChangedAt: new Date(),
-        forcePasswordChange: false,  // ✅ Desactiva flag
-        isTempPassword: false,       // ✅ Ya no es temporal
+        $set: {
+          password:            hashedPassword,
+          passwordChangedAt:   new Date(),
+          forcePasswordChange: false,
+          isTempPassword:      false,
+        },
       },
       { new: true }
     ).select('-password');
 
-    // 6️⃣ Incluir información de fuerza de contraseña (si está disponible)
-    const strengthInfo = req.passwordStrength ? {
-      score: req.passwordStrength.score,
-      maxScore: 4,
-      crackTime: req.passwordStrength.crackTime,
-    } : null;
+    const strengthInfo = req.passwordStrength
+      ? {
+          score:     req.passwordStrength.score,
+          maxScore:  4,
+          crackTime: req.passwordStrength.crackTime,
+        }
+      : null;
 
-    res.status(200).json({
+    return res.json({
       success: true,
       message: 'Contraseña cambiada exitosamente',
       user: {
-        id: updatedUser._id,
-        email: updatedUser.email,
-        passwordChangedAt: updatedUser.passwordChangedAt,
-        forcePasswordChange: updatedUser.forcePasswordChange,
+        id:                  updated._id,
+        email:               updated.email,
+        passwordChangedAt:   updated.passwordChangedAt,
+        forcePasswordChange: updated.forcePasswordChange,
       },
-      ...(strengthInfo && { passwordStrength: strengthInfo })
+      ...(strengthInfo && { passwordStrength: strengthInfo }),
     });
 
   } catch (error) {
-    console.error('❌ Error en changePassword:', error);
-    res.status(500).json({
+    console.error('changePassword error:', { requestId: req.requestId, error: error.message });
+    return res.status(500).json({
       success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Error al cambiar contraseña'
-      }
+      error: { code: 'INTERNAL_ERROR', message: 'Error al cambiar la contraseña' },
     });
   }
 };

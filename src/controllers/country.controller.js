@@ -233,7 +233,7 @@ exports.getAllCountries = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -314,7 +314,7 @@ exports.getCountriesPaginated = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -364,7 +364,7 @@ exports.getUnlockGroupOptions = async (req, res) => {
 
     res.json(options);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -390,13 +390,13 @@ exports.getCountry = async (req, res) => {
   } catch (error) {
     if (error.statusCode === 403) {
       return res.status(403).json({
-        message: error.message,
+        message: 'Error interno del servidor',
         code: error.code,
         unlock: error.unlock,
       });
     }
 
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -463,13 +463,13 @@ exports.getCountryHub = async (req, res) => {
   } catch (error) {
     if (error.statusCode === 403) {
       return res.status(403).json({
-        message: error.message,
+        message: 'Error interno del servidor',
         code: error.code,
         unlock: error.unlock,
       });
     }
 
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -526,13 +526,13 @@ exports.getCountrySections = async (req, res) => {
   } catch (error) {
     if (error.statusCode === 403) {
       return res.status(403).json({
-        message: error.message,
+        message: 'Error interno del servidor',
         code: error.code,
         unlock: error.unlock,
       });
     }
 
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -581,7 +581,7 @@ exports.getUserCountryProgress = async (req, res) => {
       level: userProgress.level
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -661,7 +661,7 @@ exports.createCountry = async (req, res) => {
 
     res.status(201).json(country);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -711,7 +711,7 @@ exports.updateCountry = async (req, res) => {
 
     res.json(country);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -756,7 +756,7 @@ exports.toggleSection = async (req, res) => {
       country
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -780,6 +780,6 @@ exports.deleteCountry = async (req, res) => {
 
     res.json({ message: "País y su contenido eliminado" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };

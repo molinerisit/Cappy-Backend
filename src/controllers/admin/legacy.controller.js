@@ -10,7 +10,7 @@ const { invalidateCatalogCaches } = require("../../services/catalogCache.service
 
 const sendError = (res, error) => {
   const status = error.statusCode || 500;
-  res.status(status).json({ message: error.message });
+  res.status(status).json({ message: 'Error interno del servidor' });
 };
 
 // =====================================================
@@ -268,7 +268,7 @@ exports.getAllLearningPaths = async (req, res) => {
     
     res.json(cleanedPaths);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -341,7 +341,7 @@ exports.createLearningPath = async (req, res) => {
     invalidateCatalogCaches();
     res.status(201).json(savedPath);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -364,7 +364,7 @@ exports.updateLearningPath = async (req, res) => {
 
     res.json(path);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -388,7 +388,7 @@ exports.deleteLearningPath = async (req, res) => {
 
     res.json({ message: "Path eliminado", deletedPath: path });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -421,7 +421,7 @@ exports.createPath = async (req, res) => {
 
     res.status(201).json(path);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -442,7 +442,7 @@ exports.getNodesByPath = async (req, res) => {
 
     res.json(nodes);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -458,7 +458,7 @@ exports.getAllLearningNodes = async (req, res) => {
 
     res.json(nodes);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -550,7 +550,7 @@ exports.createLearningNode = async (req, res) => {
 
     res.status(201).json(savedNode);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -571,7 +571,7 @@ exports.updateLearningNode = async (req, res) => {
 
     res.json(node);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -596,7 +596,7 @@ exports.deleteLearningNode = async (req, res) => {
 
     res.json({ message: "Node eliminado", deletedNode: node });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -624,7 +624,7 @@ exports.setRequiredNodes = async (req, res) => {
 
     res.json(node);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -650,7 +650,7 @@ exports.reorderNodes = async (req, res) => {
 
     res.json(updatedNodes);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -739,7 +739,7 @@ exports.importModule = async (req, res) => {
       node: updatedNode
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -800,7 +800,7 @@ exports.removeModule = async (req, res) => {
       node: updatedNode
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -888,7 +888,7 @@ exports.createLesson = async (req, res) => {
 
     res.status(201).json(lesson);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -931,7 +931,7 @@ exports.updateLesson = async (req, res) => {
 
     res.json(lesson);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -953,7 +953,7 @@ exports.deleteLesson = async (req, res) => {
 
     res.json({ message: "Lección eliminada correctamente" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -994,7 +994,7 @@ exports.reorderLesson = async (req, res) => {
     res.json({ message: "Orden actualizado correctamente" });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -1013,7 +1013,7 @@ exports.getLessonsByPath = async (req, res) => {
     res.json(lessons);
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -1033,7 +1033,7 @@ exports.getAllCulture = async (req, res) => {
     
     res.json(culture);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -1050,7 +1050,7 @@ exports.getCultureByCountry = async (req, res) => {
     
     res.json(culture);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -1107,7 +1107,7 @@ exports.createCulture = async (req, res) => {
 
     res.status(201).json(savedCulture);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -1131,7 +1131,7 @@ exports.updateCulture = async (req, res) => {
 
     res.json(culture);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -1149,7 +1149,7 @@ exports.deleteCulture = async (req, res) => {
 
     res.json({ message: "Contenido cultural eliminado" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -1177,7 +1177,7 @@ exports.addCultureStep = async (req, res) => {
 
     res.json(culture);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -1205,7 +1205,7 @@ exports.updateCultureStep = async (req, res) => {
 
     res.json(saved);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -1231,7 +1231,7 @@ exports.deleteCultureStep = async (req, res) => {
 
     res.json(culture);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 

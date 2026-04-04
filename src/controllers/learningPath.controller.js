@@ -36,7 +36,7 @@ exports.getAllPaths = async (req, res) => {
 
     res.json(grouped);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -70,7 +70,7 @@ exports.getCountryHub = async (req, res) => {
       culture: null
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -246,7 +246,7 @@ exports.getPath = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -309,7 +309,7 @@ exports.createPath = async (req, res) => {
 
     res.status(201).json(path);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -334,7 +334,7 @@ exports.updatePath = async (req, res) => {
 
     res.json(path);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -362,7 +362,7 @@ exports.addNodeToPath = async (req, res) => {
 
     res.json(path);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -383,7 +383,7 @@ exports.removeNodeFromPath = async (req, res) => {
 
     res.json(path);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -406,7 +406,7 @@ exports.deletePath = async (req, res) => {
 
     res.json({ message: "Ruta y nodos asociados eliminados" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -433,7 +433,7 @@ exports.getPathsByType = async (req, res) => {
 
     res.json(paths);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
 
@@ -459,6 +459,6 @@ exports.getGoalPaths = async (req, res) => {
 
     res.json(grouped);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
   }
 };
