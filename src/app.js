@@ -90,7 +90,7 @@ app.set('trust proxy', 1);
 app.use(requestId);           // ID único por request (trazabilidad)
 app.use(securityHeaders);     // Headers de seguridad (equivalente a helmet)
 app.use(cors(corsOptions));   // CORS configurado
-app.options('*', cors(corsOptions)); // Preflight para todos los routes
+app.options(/.*/, cors(corsOptions)); // Preflight para todos los routes (Express 5: regex evita PathError)
 
 app.use(compression());       // Gzip — reduce payload ~70%
 
