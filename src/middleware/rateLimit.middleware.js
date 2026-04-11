@@ -1,4 +1,5 @@
-const { default: rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 
 const oneMinuteMs  = 60 * 1_000;
 const fiveMinMs    = 5  * 60 * 1_000;
