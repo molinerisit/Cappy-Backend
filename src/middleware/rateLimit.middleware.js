@@ -9,14 +9,14 @@ const fifteenMinMs = 15 * 60 * 1_000;
  */
 function buildLimiter({
   windowMs = oneMinuteMs,
-  max,
+  limit,
   message,
   keyGenerator,
   skipSuccessfulRequests = false,
 }) {
   return rateLimit({
     windowMs,
-    max,
+    limit,
     keyGenerator,
     skipSuccessfulRequests,
     standardHeaders: true,   // Agrega RateLimit-* headers (RFC 6585)
@@ -44,7 +44,7 @@ const resolveClientIp = (req) =>
 // ─────────────────────────────────────────────────────────────
 const baseApiLimiter = buildLimiter({
   windowMs: oneMinuteMs,
-  max: 240,
+  limit: 240,
   keyGenerator: resolveClientIp,
   message: 'Demasiadas solicitudes. Intenta nuevamente en un minuto.',
 });
@@ -57,7 +57,7 @@ const baseApiLimiter = buildLimiter({
 // ─────────────────────────────────────────────────────────────
 const authLimiter = buildLimiter({
   windowMs: fifteenMinMs,
-  max: 10,
+  limit: 10,
   skipSuccessfulRequests: true,
   keyGenerator: (req) => {
     const email =
@@ -73,11 +73,10 @@ const authLimiter = buildLimiter({
 // ─────────────────────────────────────────────────────────────
 // ADMIN LIMITER — /api/admin
 // 60 req/min — los endpoints más sensibles deben ser MÁS restrictivos
-// Era 600: demasiado alto y un error de diseño clásico
 // ─────────────────────────────────────────────────────────────
 const adminLimiter = buildLimiter({
   windowMs: oneMinuteMs,
-  max: 60,
+  limit: 60,
   keyGenerator: (req) =>
     req.user?._id
       ? `admin:user:${req.user._id}`
@@ -92,7 +91,7 @@ const adminLimiter = buildLimiter({
 // ─────────────────────────────────────────────────────────────
 const uploadLimiter = buildLimiter({
   windowMs: oneMinuteMs,
-  max: (req) => (req.user?.role === 'admin' ? 120 : 20),
+  limit: (req) => (req.user?.role === 'admin' ? 120 : 20),
   keyGenerator: (req) =>
     req.user?._id
       ? `upload:user:${req.user._id}`
@@ -106,7 +105,7 @@ const uploadLimiter = buildLimiter({
 // ─────────────────────────────────────────────────────────────
 const publicCatalogLimiter = buildLimiter({
   windowMs: oneMinuteMs,
-  max: 90,
+  limit: 90,
   keyGenerator: resolveClientIp,
   message: 'Demasiadas solicitudes al catálogo. Espera un minuto.',
 });
@@ -114,11 +113,10 @@ const publicCatalogLimiter = buildLimiter({
 // ─────────────────────────────────────────────────────────────
 // LESSON COMPLETION LIMITER — POST /api/nodes/complete
 // Previene XP farming: máx 30 lecciones completadas / 5 min por usuario
-// Separado del baseApiLimiter para no afectar otros endpoints
 // ─────────────────────────────────────────────────────────────
 const lessonCompletionLimiter = buildLimiter({
   windowMs: fiveMinMs,
-  max: 30,
+  limit: 30,
   keyGenerator: (req) =>
     req.user?._id
       ? `lesson:user:${req.user._id}`
@@ -133,7 +131,7 @@ const lessonCompletionLimiter = buildLimiter({
 // ─────────────────────────────────────────────────────────────
 const livesLimiter = buildLimiter({
   windowMs: fiveMinMs,
-  max: 20,
+  limit: 20,
   keyGenerator: (req) =>
     req.user?._id
       ? `lives:user:${req.user._id}`
