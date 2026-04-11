@@ -1,4 +1,4 @@
-const rateLimit = require('express-rate-limit');
+const { default: rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
 const oneMinuteMs  = 60 * 1_000;
 const fiveMinMs    = 5  * 60 * 1_000;
@@ -19,8 +19,8 @@ function buildLimiter({
     limit,
     keyGenerator,
     skipSuccessfulRequests,
-    standardHeaders: true,   // Agrega RateLimit-* headers (RFC 6585)
-    legacyHeaders: false,    // No agrega X-RateLimit-* legacy
+    standardHeaders: true,
+    legacyHeaders: false,
     handler: (req, res, _next, options) => {
       res.status(options.statusCode).json({
         success: false,
@@ -34,13 +34,13 @@ function buildLimiter({
   });
 }
 
-// Resuelve IP real detrás de proxy (trust proxy: 1 en app.js)
+// Resuelve IP real detrás de proxy usando ipKeyGenerator (IPv6-safe)
 const resolveClientIp = (req) =>
-  req.ip || req.socket?.remoteAddress || 'unknown';
+  ipKeyGenerator(req.ip ?? req.socket?.remoteAddress ?? '0.0.0.0');
 
 // ─────────────────────────────────────────────────────────────
 // BASE API LIMITER — Todas las rutas /api
-// 240 req/min por IP — límite general anti-scraping
+// 240 req/min por IP
 // ─────────────────────────────────────────────────────────────
 const baseApiLimiter = buildLimiter({
   windowMs: oneMinuteMs,
@@ -50,10 +50,8 @@ const baseApiLimiter = buildLimiter({
 });
 
 // ─────────────────────────────────────────────────────────────
-// AUTH LIMITER — /api/auth (login, register)
-// Solo cuenta intentos FALLIDOS (skipSuccessfulRequests: true)
-// Key por email (más justo que por IP: evita bloquear IPs compartidas)
-// 10 intentos fallidos / 15 min → lockout temporal
+// AUTH LIMITER — /api/auth
+// 10 intentos fallidos / 15 min por email
 // ─────────────────────────────────────────────────────────────
 const authLimiter = buildLimiter({
   windowMs: fifteenMinMs,
@@ -64,7 +62,9 @@ const authLimiter = buildLimiter({
       typeof req.body?.email === 'string'
         ? req.body.email.trim().toLowerCase()
         : '';
-    return email ? `auth:email:${email}` : `auth:ip:${resolveClientIp(req)}`;
+    return email
+      ? `auth:email:${email}`
+      : `auth:ip:${ipKeyGenerator(req.ip ?? req.socket?.remoteAddress ?? '0.0.0.0')}`;
   },
   message:
     'Demasiados intentos de autenticación. Espera 15 minutos e intenta nuevamente.',
@@ -72,7 +72,7 @@ const authLimiter = buildLimiter({
 
 // ─────────────────────────────────────────────────────────────
 // ADMIN LIMITER — /api/admin
-// 60 req/min — los endpoints más sensibles deben ser MÁS restrictivos
+// 60 req/min por usuario autenticado
 // ─────────────────────────────────────────────────────────────
 const adminLimiter = buildLimiter({
   windowMs: oneMinuteMs,
@@ -80,14 +80,13 @@ const adminLimiter = buildLimiter({
   keyGenerator: (req) =>
     req.user?._id
       ? `admin:user:${req.user._id}`
-      : `admin:ip:${resolveClientIp(req)}`,
+      : `admin:ip:${ipKeyGenerator(req.ip ?? req.socket?.remoteAddress ?? '0.0.0.0')}`,
   message: 'Límite de solicitudes admin alcanzado. Espera un minuto.',
 });
 
 // ─────────────────────────────────────────────────────────────
 // UPLOAD LIMITER — /api/admin/v2/upload
 // Admins: 120/min | Users: 20/min
-// Key por userId para no penalizar IPs compartidas
 // ─────────────────────────────────────────────────────────────
 const uploadLimiter = buildLimiter({
   windowMs: oneMinuteMs,
@@ -95,12 +94,12 @@ const uploadLimiter = buildLimiter({
   keyGenerator: (req) =>
     req.user?._id
       ? `upload:user:${req.user._id}`
-      : `upload:ip:${resolveClientIp(req)}`,
+      : `upload:ip:${ipKeyGenerator(req.ip ?? req.socket?.remoteAddress ?? '0.0.0.0')}`,
   message: 'Demasiadas subidas. Espera un minuto e intenta nuevamente.',
 });
 
 // ─────────────────────────────────────────────────────────────
-// PUBLIC CATALOG LIMITER — endpoints públicos (países, paths)
+// PUBLIC CATALOG LIMITER — endpoints públicos
 // 90 req/min por IP
 // ─────────────────────────────────────────────────────────────
 const publicCatalogLimiter = buildLimiter({
@@ -112,7 +111,7 @@ const publicCatalogLimiter = buildLimiter({
 
 // ─────────────────────────────────────────────────────────────
 // LESSON COMPLETION LIMITER — POST /api/nodes/complete
-// Previene XP farming: máx 30 lecciones completadas / 5 min por usuario
+// Máx 30 lecciones completadas / 5 min por usuario
 // ─────────────────────────────────────────────────────────────
 const lessonCompletionLimiter = buildLimiter({
   windowMs: fiveMinMs,
@@ -120,14 +119,14 @@ const lessonCompletionLimiter = buildLimiter({
   keyGenerator: (req) =>
     req.user?._id
       ? `lesson:user:${req.user._id}`
-      : `lesson:ip:${resolveClientIp(req)}`,
+      : `lesson:ip:${ipKeyGenerator(req.ip ?? req.socket?.remoteAddress ?? '0.0.0.0')}`,
   message:
     'Completaste muchas lecciones muy rápido. Espera unos minutos.',
 });
 
 // ─────────────────────────────────────────────────────────────
 // LIVES LIMITER — POST /api/lives/lose
-// Máx 20 pérdidas de vida / 5 min (previene abuso del endpoint)
+// Máx 20 pérdidas de vida / 5 min
 // ─────────────────────────────────────────────────────────────
 const livesLimiter = buildLimiter({
   windowMs: fiveMinMs,
@@ -135,7 +134,7 @@ const livesLimiter = buildLimiter({
   keyGenerator: (req) =>
     req.user?._id
       ? `lives:user:${req.user._id}`
-      : `lives:ip:${resolveClientIp(req)}`,
+      : `lives:ip:${ipKeyGenerator(req.ip ?? req.socket?.remoteAddress ?? '0.0.0.0')}`,
   message: 'Demasiadas solicitudes de vidas. Espera unos minutos.',
 });
 
